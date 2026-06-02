@@ -15,6 +15,11 @@ export const settingsTable = pgTable("settings", {
   maintenanceMsg: text("maintenance_msg"),
   botToken: text("bot_token"),
   welcomeMessage: text("welcome_message"),
+  // Bot tokens (stored in DB as fallback to env vars)
+  systemBotToken:   text("system_bot_token"),
+  subagentBotToken: text("subagent_bot_token"),
+  skillzBotToken:   text("skillz_bot_token"),
+  souqBotToken:     text("souq_bot_token"),
   // Infrastructure / integrations
   sentryDsn: text("sentry_dsn"),
   upstashRedisUrl: text("upstash_redis_url"),

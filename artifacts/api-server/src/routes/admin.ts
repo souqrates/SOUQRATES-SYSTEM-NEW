@@ -264,6 +264,10 @@ router.get("/infrastructure", async (req, res) => {
     const s = rows[0];
     if (!s) { res.json({}); return; }
     res.json({
+      systemBotToken:      maskToken(s.systemBotToken),
+      subagentBotToken:    maskToken(s.subagentBotToken),
+      skillzBotToken:      maskToken(s.skillzBotToken),
+      souqBotToken:        maskToken(s.souqBotToken),
       sentryDsn:           s.sentryDsn || "",
       upstashRedisUrl:     s.upstashRedisUrl || "",
       upstashRedisToken:   maskToken(s.upstashRedisToken),
@@ -285,6 +289,10 @@ router.post("/infrastructure", async (req, res) => {
     upstash_redis:   { urlField: "upstashRedisUrl",  tokenField: "upstashRedisToken"  },
     upstash_qstash:  { urlField: "upstashQstashUrl", tokenField: "upstashQstashToken" },
     contabo_webhook: { urlField: "contaboWebhookUrl" },
+    bot_system:      { urlField: "systemBotToken" },
+    bot_subagent:    { urlField: "subagentBotToken" },
+    bot_skillz:      { urlField: "skillzBotToken" },
+    bot_souq:        { urlField: "souqBotToken" },
   };
   const fields = fieldMap[service];
   if (!fields) { res.status(400).json({ error: "Unknown service" }); return; }
