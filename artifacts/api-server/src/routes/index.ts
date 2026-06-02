@@ -26,8 +26,8 @@ router.use("/subagent", subagentRouter);
 
 // Telegram webhook endpoints (used in production when Contabo URL is configured)
 router.post("/telegram/webhook/:botType", async (req, res) => {
-  const botType = req.params.botType as "skillz" | "souq";
-  if (botType !== "skillz" && botType !== "souq") {
+  const botType = req.params.botType as "system" | "skillz" | "souq" | "subagent";
+  if (!["system", "skillz", "souq", "subagent"].includes(botType)) {
     res.status(400).json({ error: "Unknown bot type" });
     return;
   }
