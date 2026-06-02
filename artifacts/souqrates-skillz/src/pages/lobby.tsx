@@ -1,56 +1,104 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { useListGames } from "@workspace/api-client-react";
-import { Clock, Trophy, Zap, Target, Music, Brain, Atom, History, ChevronRight } from "lucide-react";
+import { History, ChevronRight, Zap, Target, Music, Brain, Atom, Star } from "lucide-react";
 
 const CATEGORIES = ["All", "Reflex", "Aim", "Timing", "Pattern", "Physics"];
 
-const CATEGORY_ICONS: Record<string, React.ReactNode> = {
-  All: <Zap className="w-4 h-4" />,
-  Reflex: <Zap className="w-4 h-4" />,
-  Aim: <Target className="w-4 h-4" />,
-  Timing: <Music className="w-4 h-4" />,
-  Pattern: <Brain className="w-4 h-4" />,
-  Physics: <Atom className="w-4 h-4" />,
+const CATEGORY_META: Record<string, { icon: React.ReactNode; color: string; glow: string; desc: string }> = {
+  All:     { icon: <Star className="w-3.5 h-3.5" />,  color: "#a855f7", glow: "rgba(168,85,247,0.25)",  desc: "All Games" },
+  Reflex:  { icon: <Zap className="w-3.5 h-3.5" />,   color: "#f97316", glow: "rgba(249,115,22,0.25)",  desc: "Speed & Reaction" },
+  Aim:     { icon: <Target className="w-3.5 h-3.5" />, color: "#06b6d4", glow: "rgba(6,182,212,0.25)",   desc: "Precision & Accuracy" },
+  Timing:  { icon: <Music className="w-3.5 h-3.5" />,  color: "#f59e0b", glow: "rgba(245,158,11,0.25)",  desc: "Beat & Rhythm" },
+  Pattern: { icon: <Brain className="w-3.5 h-3.5" />,  color: "#10b981", glow: "rgba(16,185,129,0.25)",  desc: "Memory & Sequence" },
+  Physics: { icon: <Atom className="w-3.5 h-3.5" />,   color: "#ec4899", glow: "rgba(236,72,153,0.25)",  desc: "Force & Motion" },
 };
 
-const DIFFICULTY_COLORS: Record<string, string> = {
-  Easy: "text-emerald-400",
-  Medium: "text-yellow-400",
-  Hard: "text-red-400",
+const DIFFICULTY_META: Record<string, { color: string; bars: number }> = {
+  Easy:   { color: "#10b981", bars: 1 },
+  Medium: { color: "#f59e0b", bars: 2 },
+  Hard:   { color: "#ef4444", bars: 3 },
 };
 
-const CATEGORY_ACCENT: Record<string, string> = {
-  Reflex: "#a855f7",
-  Aim: "#06b6d4",
-  Timing: "#f59e0b",
-  Pattern: "#10b981",
-  Physics: "#f97316",
+const ENGINE_LABELS: Record<string, string> = {
+  Reflex: "TARGET STRIKE",
+  Aim: "SPIN SNIPER",
+  Timing: "HEARTBEAT",
+  Pattern: "CRYPTO SEQ",
+  Physics: "GRAVITY FLIP",
 };
+
+function StarField() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d")!;
+    const W = canvas.width = canvas.offsetWidth;
+    const H = canvas.height = canvas.offsetHeight;
+    const stars = Array.from({ length: 80 }, () => ({
+      x: Math.random() * W, y: Math.random() * H,
+      r: 0.3 + Math.random() * 1.2, twinkle: Math.random() * Math.PI * 2, speed: 0.01 + Math.random() * 0.03,
+    }));
+    let raf: number;
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+      for (const s of stars) {
+        s.twinkle += s.speed;
+        ctx.globalAlpha = 0.2 + Math.sin(s.twinkle) * 0.15;
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      raf = requestAnimationFrame(draw);
+    }
+    draw();
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />;
+}
 
 export default function Lobby() {
   const [activeCategory, setActiveCategory] = useState("All");
   const [, navigate] = useLocation();
-
   const { data: games = [], isLoading } = useListGames(
     activeCategory !== "All" ? { category: activeCategory } : {}
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-[#06060f] relative overflow-hidden">
+      {/* Animated starfield background */}
+      <div className="fixed inset-0 pointer-events-none">
+        <StarField />
+        {/* Gradient overlays */}
+        <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse 60% 40% at 50% 0%, rgba(168,85,247,0.08) 0%, transparent 70%)" }} />
+        <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse 40% 30% at 80% 80%, rgba(6,182,212,0.05) 0%, transparent 60%)" }} />
+      </div>
+
       {/* Header */}
-      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border/50">
-        <div className="max-w-screen-md mx-auto px-4 py-3 flex items-center justify-between">
+      <div className="sticky top-0 z-20 border-b border-white/5" style={{ background: "rgba(6,6,15,0.9)", backdropFilter: "blur(16px)" }}>
+        {/* Hero title */}
+        <div className="max-w-screen-md mx-auto px-4 pt-4 pb-3 flex items-center justify-between">
           <div>
-            <div className="text-xs text-muted-foreground tracking-widest uppercase">Souqrates</div>
-            <div className="text-lg font-black text-primary tracking-wider">SKILLZ</div>
+            <div className="text-[10px] tracking-[0.3em] text-purple-500/60 uppercase mb-0.5">Souqrates</div>
+            <div className="text-2xl font-black tracking-[0.15em] leading-none" style={{ background: "linear-gradient(90deg, #a855f7, #06b6d4)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              SKILLZ
+            </div>
+            <div className="text-[9px] text-muted-foreground mt-0.5">50 GAMES &bull; WIN SKZ PRIZES</div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate("/leaderboard")}
+              className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors px-2.5 py-1.5 rounded-lg hover:bg-white/5 border border-white/5"
+            >
+              <Star className="w-3 h-3" />
+              Board
+            </button>
             <button
               onClick={() => navigate("/history")}
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-lg hover:bg-muted"
+              className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors px-2.5 py-1.5 rounded-lg hover:bg-white/5 border border-white/5"
             >
-              <History className="w-3.5 h-3.5" />
+              <History className="w-3 h-3" />
               History
             </button>
           </div>
@@ -59,82 +107,118 @@ export default function Lobby() {
         {/* Category filters */}
         <div className="max-w-screen-md mx-auto px-4 pb-3">
           <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1">
-            {CATEGORIES.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setActiveCategory(cat)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
-                  activeCategory === cat
-                    ? "bg-primary text-primary-foreground shadow-lg"
-                    : "bg-muted text-muted-foreground hover:text-foreground hover:bg-secondary"
-                }`}
-              >
-                {CATEGORY_ICONS[cat]}
-                {cat}
-              </button>
-            ))}
+            {CATEGORIES.map((cat) => {
+              const meta = CATEGORY_META[cat];
+              const active = activeCategory === cat;
+              return (
+                <button
+                  key={cat}
+                  onClick={() => setActiveCategory(cat)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-all border"
+                  style={active ? {
+                    color: meta.color,
+                    backgroundColor: `${meta.color}18`,
+                    borderColor: `${meta.color}50`,
+                    boxShadow: `0 0 12px ${meta.glow}`,
+                  } : {
+                    color: "rgba(255,255,255,0.35)",
+                    backgroundColor: "rgba(255,255,255,0.03)",
+                    borderColor: "rgba(255,255,255,0.07)",
+                  }}
+                >
+                  <span style={active ? { color: meta.color } : { color: "rgba(255,255,255,0.3)" }}>{meta.icon}</span>
+                  {cat}
+                </button>
+              );
+            })}
           </div>
+          {activeCategory !== "All" && (
+            <div className="text-[10px] mt-1.5 pl-1" style={{ color: CATEGORY_META[activeCategory].color + "80" }}>
+              {CATEGORY_META[activeCategory].desc}
+            </div>
+          )}
         </div>
       </div>
 
       {/* Games grid */}
-      <div className="max-w-screen-md mx-auto px-4 py-4">
+      <div className="relative z-10 max-w-screen-md mx-auto px-4 py-4">
         {isLoading ? (
           <div className="grid grid-cols-2 gap-3">
             {Array.from({ length: 10 }).map((_, i) => (
-              <div key={i} className="h-40 rounded-xl bg-muted animate-pulse" />
+              <div key={i} className="h-44 rounded-2xl animate-pulse" style={{ background: "rgba(255,255,255,0.04)" }} />
             ))}
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
             {games.map((game) => {
-              const accent = CATEGORY_ACCENT[game.category] || "#a855f7";
+              const meta = CATEGORY_META[game.category] || CATEGORY_META["All"];
+              const diff = DIFFICULTY_META[game.difficultyLabel || "Medium"] || DIFFICULTY_META["Medium"];
+              const engineLabel = ENGINE_LABELS[game.category] || game.category.toUpperCase();
+              const isNew = game.totalPlays < 50;
+
               return (
                 <button
                   key={game.id}
                   onClick={() => navigate(`/game/${game.id}`)}
-                  className="game-card relative rounded-xl p-4 text-left bg-card border border-border/60 overflow-hidden"
-                  style={{ "--accent-color": accent } as React.CSSProperties}
+                  className="group relative rounded-2xl text-left overflow-hidden transition-all duration-200 active:scale-95"
+                  style={{ background: "rgba(10,10,22,0.95)", border: `1px solid rgba(255,255,255,0.07)` }}
                 >
-                  {/* Glow accent top */}
-                  <div
-                    className="absolute top-0 left-0 right-0 h-0.5 rounded-t-xl"
-                    style={{ background: `linear-gradient(90deg, transparent, ${accent}, transparent)` }}
-                  />
+                  {/* Top glow bar */}
+                  <div className="absolute top-0 left-0 right-0 h-0.5 rounded-t-2xl transition-opacity" style={{ background: `linear-gradient(90deg, transparent, ${meta.color}, transparent)` }} />
 
-                  {/* Category badge */}
-                  <div className="flex items-center justify-between mb-3">
-                    <span
-                      className="text-xs font-bold px-2 py-0.5 rounded-full"
-                      style={{ color: accent, backgroundColor: `${accent}20` }}
-                    >
-                      {game.category}
-                    </span>
-                    {game.difficultyLabel && (
-                      <span className={`text-xs font-semibold ${DIFFICULTY_COLORS[game.difficultyLabel] || "text-muted-foreground"}`}>
-                        {game.difficultyLabel}
-                      </span>
+                  {/* Visual preview area */}
+                  <div className="relative flex items-center justify-center py-5 overflow-hidden" style={{ background: `linear-gradient(135deg, ${meta.color}0a 0%, transparent 70%)` }}>
+                    {/* Decorative ring */}
+                    <div className="absolute" style={{ width: 80, height: 80, borderRadius: "50%", border: `1px solid ${meta.color}20` }} />
+                    <div className="absolute" style={{ width: 56, height: 56, borderRadius: "50%", border: `1px solid ${meta.color}14` }} />
+                    {/* Category icon — large */}
+                    <div className="relative z-10 flex items-center justify-center w-12 h-12 rounded-full" style={{ background: `${meta.color}18`, border: `2px solid ${meta.color}40`, boxShadow: `0 0 18px ${meta.color}30` }}>
+                      <div style={{ color: meta.color, transform: "scale(1.5)" }}>{meta.icon}</div>
+                    </div>
+                    {/* Engine label badge */}
+                    <div className="absolute bottom-1.5 left-3 right-3 text-center">
+                      <span className="text-[8px] font-bold tracking-widest" style={{ color: meta.color + "70" }}>{engineLabel}</span>
+                    </div>
+                    {/* NEW badge */}
+                    {isNew && (
+                      <div className="absolute top-2 right-2 text-[8px] font-black px-1.5 py-0.5 rounded-full" style={{ background: meta.color, color: "#fff" }}>NEW</div>
                     )}
                   </div>
 
-                  {/* Game name */}
-                  <div className="text-sm font-black leading-tight text-foreground mb-1 tracking-wide">
-                    {game.name.toUpperCase()}
-                  </div>
-
-                  {/* Description */}
-                  <div className="text-xs text-muted-foreground leading-relaxed line-clamp-2 mb-3">
-                    {game.description}
-                  </div>
-
-                  {/* Footer */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Trophy className="w-3 h-3" />
-                      <span>{game.totalPlays.toLocaleString()}</span>
+                  {/* Card content */}
+                  <div className="px-3 pb-3">
+                    {/* Game name */}
+                    <div className="text-[11px] font-black text-foreground tracking-wide leading-tight mb-1.5 line-clamp-1">
+                      {game.name.toUpperCase()}
                     </div>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+
+                    {/* Description */}
+                    <div className="text-[9px] text-muted-foreground leading-relaxed line-clamp-2 mb-2.5" style={{ minHeight: "2.4em" }}>
+                      {game.description}
+                    </div>
+
+                    {/* Footer row */}
+                    <div className="flex items-center justify-between">
+                      {/* Difficulty bars */}
+                      <div className="flex items-center gap-0.5">
+                        {[1, 2, 3].map((bar) => (
+                          <div key={bar} className="w-3 h-1.5 rounded-sm" style={{
+                            background: bar <= diff.bars ? diff.color : "rgba(255,255,255,0.1)",
+                            boxShadow: bar <= diff.bars ? `0 0 4px ${diff.color}60` : "none",
+                          }} />
+                        ))}
+                        <span className="text-[8px] ml-1" style={{ color: diff.color + "80" }}>{game.difficultyLabel}</span>
+                      </div>
+                      {/* Play count */}
+                      <div className="flex items-center gap-1 text-[9px] text-muted-foreground/60">
+                        <span>{game.totalPlays.toLocaleString()}</span>
+                        <ChevronRight className="w-3 h-3 opacity-40 group-hover:opacity-100 transition-opacity" style={{ color: meta.color }} />
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Right glow edge on hover */}
+                  <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" style={{ boxShadow: `inset 0 0 30px ${meta.color}10, 0 0 20px ${meta.color}15` }} />
                 </button>
               );
             })}
@@ -143,10 +227,12 @@ export default function Lobby() {
 
         {!isLoading && games.length === 0 && (
           <div className="text-center py-20 text-muted-foreground">
-            <Brain className="w-12 h-12 mx-auto mb-3 opacity-30" />
-            <div className="text-sm">No games found in this category.</div>
+            <Brain className="w-12 h-12 mx-auto mb-3 opacity-20" />
+            <div className="text-sm">No games in this category.</div>
           </div>
         )}
+
+        <div className="h-8" />
       </div>
     </div>
   );
