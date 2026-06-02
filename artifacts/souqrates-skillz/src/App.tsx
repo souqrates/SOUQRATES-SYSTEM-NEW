@@ -8,12 +8,23 @@ import Play from "@/pages/play";
 import History from "@/pages/history";
 import LeaderboardPage from "@/pages/leaderboard";
 import NotFound from "@/pages/not-found";
+import { useEffect } from "react";
+import { initTelegram, getTelegramId } from "@/lib/telegram";
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { retry: 1, staleTime: 30_000 },
   },
 });
+
+function TelegramInit({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    initTelegram();
+    const id = getTelegramId();
+    localStorage.setItem("telegram_id", id);
+  }, []);
+  return <>{children}</>;
+}
 
 function Router() {
   return (
@@ -32,9 +43,11 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
-        </WouterRouter>
+        <TelegramInit>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <Router />
+          </WouterRouter>
+        </TelegramInit>
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>

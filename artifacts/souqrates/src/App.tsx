@@ -11,25 +11,28 @@ import Wallet from "./pages/wallet";
 import Referrals from "./pages/referrals";
 import Bots from "./pages/bots";
 import ManagerLayout from "./pages/manager/layout";
+import { initTelegram, getTelegramUser, getReferralParam } from "./lib/telegram";
 
 const queryClient = new QueryClient();
 
-function MockAuthLayer({ children }: { children: React.ReactNode }) {
+function TelegramAuthLayer({ children }: { children: React.ReactNode }) {
   const registerMutation = useRegisterUser();
 
   useEffect(() => {
-    const telegramId = "demo_user_001";
-    localStorage.setItem("telegram_id", telegramId);
+    initTelegram();
+    const tgUser = getTelegramUser();
+    const referralCode = getReferralParam();
+
+    localStorage.setItem("telegram_id", tgUser.telegramId);
 
     registerMutation.mutate({
       data: {
-        telegramId,
-        firstName: "Demo",
-        username: "souqrates_demo",
-      }
-    }, {
-      onSuccess: () => {
-        console.log("Mock Telegram user registered");
+        telegramId: tgUser.telegramId,
+        firstName: tgUser.firstName,
+        lastName: tgUser.lastName,
+        username: tgUser.username,
+        photoUrl: tgUser.photoUrl,
+        ...(referralCode ? { referralCode } : {}),
       }
     });
   }, []);
@@ -50,6 +53,7 @@ function Router() {
         <Route path="/manager/transactions" component={ManagerLayout} />
         <Route path="/manager/games" component={ManagerLayout} />
         <Route path="/manager/souq" component={ManagerLayout} />
+        <Route path="/manager/subagents" component={ManagerLayout} />
         <Route path="/manager/settings" component={ManagerLayout} />
         <Route component={NotFound} />
       </Switch>
@@ -61,11 +65,11 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <MockAuthLayer>
+        <TelegramAuthLayer>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
             <Router />
           </WouterRouter>
-        </MockAuthLayer>
+        </TelegramAuthLayer>
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>
