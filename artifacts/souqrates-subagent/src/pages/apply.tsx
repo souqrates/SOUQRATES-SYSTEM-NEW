@@ -12,6 +12,8 @@ export default function ApplyPage() {
     phone: "",
     email: "",
     company: "",
+    country: "",
+    address: "",
     experience: "",
     motivation: "",
   });
@@ -24,14 +26,13 @@ export default function ApplyPage() {
     e.preventDefault();
     setError(null);
 
-    if (!form.fullName || !form.phone || !form.email || !form.experience || !form.motivation) {
+    if (!form.fullName || !form.phone || !form.email || !form.country || !form.address || !form.experience || !form.motivation) {
       setError("Please fill all required fields.");
       return;
     }
 
     setLoading(true);
     try {
-      // First ensure user exists
       const regRes = await fetch("/api/users/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -94,6 +95,7 @@ export default function ApplyPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Full Name */}
             <div>
               <label className="text-xs font-orbitron text-muted-foreground uppercase tracking-widest mb-1.5 block">
                 Full Name <span className="text-primary">*</span>
@@ -106,6 +108,7 @@ export default function ApplyPage() {
               />
             </div>
 
+            {/* Phone + Email */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-orbitron text-muted-foreground uppercase tracking-widest mb-1.5 block">
@@ -132,6 +135,7 @@ export default function ApplyPage() {
               </div>
             </div>
 
+            {/* Company */}
             <div>
               <label className="text-xs font-orbitron text-muted-foreground uppercase tracking-widest mb-1.5 block">
                 Company / Agency
@@ -144,6 +148,32 @@ export default function ApplyPage() {
               />
             </div>
 
+            {/* Country + Address */}
+            <div>
+              <label className="text-xs font-orbitron text-muted-foreground uppercase tracking-widest mb-1.5 block">
+                Country <span className="text-primary">*</span>
+              </label>
+              <input
+                className={inputClass}
+                placeholder="e.g. Saudi Arabia, UAE, Egypt..."
+                value={form.country}
+                onChange={(e) => update("country", e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-orbitron text-muted-foreground uppercase tracking-widest mb-1.5 block">
+                Address <span className="text-primary">*</span>
+              </label>
+              <input
+                className={inputClass}
+                placeholder="City, Street or full address"
+                value={form.address}
+                onChange={(e) => update("address", e.target.value)}
+              />
+            </div>
+
+            {/* Experience */}
             <div>
               <label className="text-xs font-orbitron text-muted-foreground uppercase tracking-widest mb-1.5 block">
                 Experience <span className="text-primary">*</span>
@@ -157,6 +187,7 @@ export default function ApplyPage() {
               />
             </div>
 
+            {/* Motivation */}
             <div>
               <label className="text-xs font-orbitron text-muted-foreground uppercase tracking-widest mb-1.5 block">
                 Why SKZ Subagent? <span className="text-primary">*</span>

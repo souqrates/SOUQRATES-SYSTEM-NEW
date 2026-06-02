@@ -10,6 +10,8 @@ export const subagentApplicationsTable = pgTable("subagent_applications", {
   phone: text("phone").notNull(),
   email: text("email").notNull(),
   company: text("company"),
+  country: text("country").notNull().default(""),
+  address: text("address").notNull().default(""),
   experience: text("experience").notNull(),
   motivation: text("motivation").notNull(),
   status: text("status").notNull().default("pending"),

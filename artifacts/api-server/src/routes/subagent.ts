@@ -14,6 +14,8 @@ function serializeApplication(a: typeof subagentApplicationsTable.$inferSelect) 
     phone: a.phone,
     email: a.email,
     company: a.company,
+    country: a.country,
+    address: a.address,
     experience: a.experience,
     motivation: a.motivation,
     status: a.status,
@@ -25,8 +27,8 @@ function serializeApplication(a: typeof subagentApplicationsTable.$inferSelect) 
 
 // POST /api/subagent/apply
 router.post("/apply", async (req, res) => {
-  const { telegramId, userId, fullName, phone, email, company, experience, motivation } = req.body;
-  if (!telegramId || !userId || !fullName || !phone || !email || !experience || !motivation) {
+  const { telegramId, userId, fullName, phone, email, company, country, address, experience, motivation } = req.body;
+  if (!telegramId || !userId || !fullName || !phone || !email || !country || !address || !experience || !motivation) {
     res.status(400).json({ error: "Missing required fields" });
     return;
   }
@@ -42,7 +44,7 @@ router.post("/apply", async (req, res) => {
     }
     const inserted = await db
       .insert(subagentApplicationsTable)
-      .values({ userId, telegramId, fullName, phone, email, company: company || null, experience, motivation })
+      .values({ userId, telegramId, fullName, phone, email, company: company || null, country, address, experience, motivation })
       .returning();
     res.json(serializeApplication(inserted[0]));
   } catch (err) {
