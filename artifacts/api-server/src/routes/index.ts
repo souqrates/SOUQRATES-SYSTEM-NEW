@@ -8,6 +8,7 @@ import adminRouter from "./admin";
 import settingsRouter from "./settings";
 import gamesRouter from "./games";
 import souqRouter from "./souq";
+import subagentRouter from "./subagent";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use("/admin", adminRouter);
 router.use("/settings", settingsRouter);
 router.use("/games", gamesRouter);
 router.use("/souq", souqRouter);
+router.use("/subagent", subagentRouter);
 
 export default router;

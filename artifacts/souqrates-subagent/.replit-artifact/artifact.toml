@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/subagent/"
+title = "Souqrates Subagent"
+version = "1.0.0"
+id = "artifacts/souqrates-subagent"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/subagent/" ]
+localPort = 23973
+
+[services.development]
+run = "pnpm --filter @workspace/souqrates-subagent run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/souqrates-subagent", "run", "build" ]
+publicDir = "artifacts/souqrates-subagent/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23973"
+BASE_PATH = "/subagent/"

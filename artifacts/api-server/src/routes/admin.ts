@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { usersTable, transactionsTable } from "@workspace/db";
+import { usersTable, transactionsTable, subagentApplicationsTable } from "@workspace/db";
 import { eq, sql, desc, and } from "drizzle-orm";
 import { BanUserBody, SendBroadcastBody, ListAllTransactionsQueryParams } from "@workspace/api-zod";
 
