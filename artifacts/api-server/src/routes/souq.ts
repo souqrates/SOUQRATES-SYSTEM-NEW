@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db, souqProductsTable, souqPurchasesTable, usersTable } from "@workspace/db";
 import { eq, and, ilike, or, sql, desc } from "drizzle-orm";
+import { processReferralCommissions, getSettings } from "../lib/referralCommissions";
 import {
   ListSouqProductsQueryParams,
   CreateSouqProductBody,
@@ -200,6 +201,14 @@ router.post("/purchase/:productId", async (req, res) => {
   await db.update(souqProductsTable)
     .set({ totalSales: product.totalSales + 1 })
     .where(eq(souqProductsTable.id, productId));
+
+  // Process referral commissions on book purchase
+  try {
+    const settings = await getSettings();
+    await processReferralCommissions(user.id, price, settings, `book purchase #${productId}`);
+  } catch (commErr) {
+    req.log.error({ commErr }, "Failed to process referral commissions for purchase");
+  }
 
   res.json({
     success: true,
