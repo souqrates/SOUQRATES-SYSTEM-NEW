@@ -6,8 +6,12 @@ import { Badge } from "@/components/ui/badge";
 
 function launchBot(url: string) {
   const tg = window.Telegram?.WebApp;
-  if (tg && url.startsWith("https://t.me/")) {
-    tg.openTelegramLink(url);
+  if (tg) {
+    if (url.startsWith("https://t.me/")) {
+      tg.openTelegramLink(url);
+    } else {
+      tg.openLink(url);
+    }
   } else {
     window.open(url, "_blank", "noopener,noreferrer");
   }

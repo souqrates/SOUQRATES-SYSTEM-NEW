@@ -9,7 +9,7 @@ const BOT_SEED = [
     description: "Skill-based paid games with prizes and competitions",
     iconEmoji: "🎮",
     isActive: true,
-    botUrl: "https://t.me/souqrates_system_bot/skillz",
+    botUrl: "https://souqrates.com/skillz/",
   },
   {
     slug: "souqrates-souq",
@@ -17,7 +17,7 @@ const BOT_SEED = [
     description: "Digital books marketplace — buy and sell digital knowledge",
     iconEmoji: "📚",
     isActive: true,
-    botUrl: "https://t.me/souqrates_system_bot/souq",
+    botUrl: "https://souqrates.com/souq/",
   },
   {
     slug: "souqrates-subagent",
@@ -25,7 +25,7 @@ const BOT_SEED = [
     description: "Partner platform for buying and selling SKZ currency",
     iconEmoji: "🤝",
     isActive: true,
-    botUrl: "https://t.me/souqrates_system_bot/subagent",
+    botUrl: "https://souqrates.com/subagent/",
   },
 ];
 
