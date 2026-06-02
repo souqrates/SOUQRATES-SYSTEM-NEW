@@ -25,6 +25,8 @@ tags:
     description: Skillz games catalog and sessions
   - name: souq
     description: Souqrates Souq digital marketplace
+  - name: subagent
+    description: Souqrates Subagent partner platform
 
 paths:
   /healthz:
@@ -830,6 +832,138 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SouqStats"
+
+  /subagent/apply:
+    post:
+      operationId: applySubagent
+      tags:
+        - subagent
+      summary: Submit partner application
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubagentApplicationInput"
+      responses:
+        "200":
+          description: Application submitted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubagentApplicationResponse"
+        "409":
+          description: Application already exists
+
+  /subagent/me:
+    get:
+      operationId: getSubagentMe
+      tags:
+        - subagent
+      summary: Get own application status
+      parameters:
+        - name: telegram_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Application info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubagentMeResponse"
+        "404":
+          description: No application found
+
+  /subagent/transfer:
+    post:
+      operationId: subagentTransfer
+      tags:
+        - subagent
+      summary: Send SKZ to user by Telegram ID (approved subagents only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubagentTransferInput"
+      responses:
+        "200":
+          description: Transfer complete
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+        "403":
+          description: Not an approved subagent
+
+  /subagent/transfers:
+    get:
+      operationId: listSubagentTransfers
+      tags:
+        - subagent
+      summary: Get transfer history for approved subagent
+      parameters:
+        - name: telegram_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Transfer history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Transaction"
+        "403":
+          description: Not an approved subagent
+
+  /admin/subagent-applications:
+    get:
+      operationId: listSubagentApplications
+      tags:
+        - subagent
+      summary: List all partner applications (admin)
+      responses:
+        "200":
+          description: Applications list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SubagentApplicationResponse"
+
+  /admin/subagent-applications/{applicationId}:
+    patch:
+      operationId: reviewSubagentApplication
+      tags:
+        - subagent
+      summary: Approve or reject a partner application (admin)
+      parameters:
+        - name: applicationId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubagentApplicationReview"
+      responses:
+        "200":
+          description: Application updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubagentApplicationResponse"
 
   /settings:
     get:
@@ -1931,3 +2065,111 @@ components:
           type:
             - string
             - "null"
+
+    SubagentApplicationInput:
+      type: object
+      required:
+        - telegramId
+        - userId
+        - fullName
+        - phone
+        - email
+        - experience
+        - motivation
+      properties:
+        telegramId:
+          type: string
+        userId:
+          type: integer
+        fullName:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        company:
+          type: string
+        experience:
+          type: string
+        motivation:
+          type: string
+
+    SubagentApplicationResponse:
+      type: object
+      required:
+        - id
+        - telegramId
+        - fullName
+        - phone
+        - email
+        - status
+        - createdAt
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        telegramId:
+          type: string
+        fullName:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        company:
+          type:
+            - string
+            - "null"
+        experience:
+          type: string
+        motivation:
+          type: string
+        status:
+          type: string
+        reviewNote:
+          type:
+            - string
+            - "null"
+        reviewedAt:
+          type:
+            - string
+            - "null"
+        createdAt:
+          type: string
+
+    SubagentMeResponse:
+      type: object
+      required:
+        - application
+      properties:
+        application:
+          $ref: "#/components/schemas/SubagentApplicationResponse"
+        skzBalance:
+          type: number
+
+    SubagentApplicationReview:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+        reviewNote:
+          type: string
+
+    SubagentTransferInput:
+      type: object
+      required:
+        - fromTelegramId
+        - toTelegramId
+        - amount
+      properties:
+        fromTelegramId:
+          type: string
+        toTelegramId:
+          type: string
+        amount:
+          type: number
+        note:
+          type: string

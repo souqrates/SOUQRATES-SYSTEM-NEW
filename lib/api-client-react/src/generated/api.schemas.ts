@@ -529,6 +529,53 @@ export interface SouqStats {
   topProduct?: string | null;
 }
 
+export interface SubagentApplicationInput {
+  telegramId: string;
+  userId: number;
+  fullName: string;
+  phone: string;
+  email: string;
+  company?: string;
+  experience: string;
+  motivation: string;
+}
+
+export interface SubagentApplicationResponse {
+  id: number;
+  userId?: number;
+  telegramId: string;
+  fullName: string;
+  phone: string;
+  email: string;
+  /** @nullable */
+  company?: string | null;
+  experience?: string;
+  motivation?: string;
+  status: string;
+  /** @nullable */
+  reviewNote?: string | null;
+  /** @nullable */
+  reviewedAt?: string | null;
+  createdAt: string;
+}
+
+export interface SubagentMeResponse {
+  application: SubagentApplicationResponse;
+  skzBalance?: number;
+}
+
+export interface SubagentApplicationReview {
+  status: string;
+  reviewNote?: string;
+}
+
+export interface SubagentTransferInput {
+  fromTelegramId: string;
+  toTelegramId: string;
+  amount: number;
+  note?: string;
+}
+
 export type GetMeParams = {
 telegram_id: string;
 };
@@ -596,6 +643,14 @@ export type DeleteSouqProduct200 = {
 };
 
 export type GetMySouqLibraryParams = {
+telegram_id: string;
+};
+
+export type GetSubagentMeParams = {
+telegram_id: string;
+};
+
+export type ListSubagentTransfersParams = {
 telegram_id: string;
 };
 

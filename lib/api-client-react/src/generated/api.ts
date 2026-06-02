@@ -42,12 +42,14 @@ import type {
   GetReferralEarningsParams,
   GetReferralLeaderboardParams,
   GetSessionHistoryParams,
+  GetSubagentMeParams,
   GetWalletBalanceParams,
   HealthStatus,
   LeaderboardEntry,
   ListAllTransactionsParams,
   ListGamesParams,
   ListSouqProductsParams,
+  ListSubagentTransfersParams,
   ListTransactionsParams,
   ListUsersParams,
   ReferralEarnings,
@@ -64,6 +66,11 @@ import type {
   SouqPurchaseResult,
   SouqStats,
   StartSessionInput,
+  SubagentApplicationInput,
+  SubagentApplicationResponse,
+  SubagentApplicationReview,
+  SubagentMeResponse,
+  SubagentTransferInput,
   SystemSettings,
   TicketUpdate,
   Transaction,
@@ -2949,6 +2956,465 @@ export function useGetSouqStats<TData = Awaited<ReturnType<typeof getSouqStats>>
 
 
 
+
+export const getApplySubagentUrl = () => {
+
+
+
+
+  return `/api/subagent/apply`
+}
+
+/**
+ * @summary Submit partner application
+ */
+export const applySubagent = async (subagentApplicationInput: SubagentApplicationInput, options?: RequestInit): Promise<SubagentApplicationResponse> => {
+
+  return customFetch<SubagentApplicationResponse>(getApplySubagentUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      subagentApplicationInput,)
+  }
+);}
+
+
+
+
+export const getApplySubagentMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applySubagent>>, TError,{data: BodyType<SubagentApplicationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof applySubagent>>, TError,{data: BodyType<SubagentApplicationInput>}, TContext> => {
+
+const mutationKey = ['applySubagent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof applySubagent>>, {data: BodyType<SubagentApplicationInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  applySubagent(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ApplySubagentMutationResult = NonNullable<Awaited<ReturnType<typeof applySubagent>>>
+    export type ApplySubagentMutationBody = BodyType<SubagentApplicationInput>
+    export type ApplySubagentMutationError = ErrorType<void>
+
+    /**
+ * @summary Submit partner application
+ */
+export const useApplySubagent = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof applySubagent>>, TError,{data: BodyType<SubagentApplicationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof applySubagent>>,
+        TError,
+        {data: BodyType<SubagentApplicationInput>},
+        TContext
+      > => {
+      return useMutation(getApplySubagentMutationOptions(options));
+    }
+
+export const getGetSubagentMeUrl = (params: GetSubagentMeParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/subagent/me?${stringifiedParams}` : `/api/subagent/me`
+}
+
+/**
+ * @summary Get own application status
+ */
+export const getSubagentMe = async (params: GetSubagentMeParams, options?: RequestInit): Promise<SubagentMeResponse> => {
+
+  return customFetch<SubagentMeResponse>(getGetSubagentMeUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSubagentMeQueryKey = (params?: GetSubagentMeParams,) => {
+    return [
+    `/api/subagent/me`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetSubagentMeQueryOptions = <TData = Awaited<ReturnType<typeof getSubagentMe>>, TError = ErrorType<void>>(params: GetSubagentMeParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSubagentMe>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSubagentMeQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSubagentMe>>> = ({ signal }) => getSubagentMe(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSubagentMe>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSubagentMeQueryResult = NonNullable<Awaited<ReturnType<typeof getSubagentMe>>>
+export type GetSubagentMeQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get own application status
+ */
+
+export function useGetSubagentMe<TData = Awaited<ReturnType<typeof getSubagentMe>>, TError = ErrorType<void>>(
+ params: GetSubagentMeParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSubagentMe>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSubagentMeQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getSubagentTransferUrl = () => {
+
+
+
+
+  return `/api/subagent/transfer`
+}
+
+/**
+ * @summary Send SKZ to user by Telegram ID (approved subagents only)
+ */
+export const subagentTransfer = async (subagentTransferInput: SubagentTransferInput, options?: RequestInit): Promise<Transaction> => {
+
+  return customFetch<Transaction>(getSubagentTransferUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      subagentTransferInput,)
+  }
+);}
+
+
+
+
+export const getSubagentTransferMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof subagentTransfer>>, TError,{data: BodyType<SubagentTransferInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof subagentTransfer>>, TError,{data: BodyType<SubagentTransferInput>}, TContext> => {
+
+const mutationKey = ['subagentTransfer'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof subagentTransfer>>, {data: BodyType<SubagentTransferInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  subagentTransfer(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubagentTransferMutationResult = NonNullable<Awaited<ReturnType<typeof subagentTransfer>>>
+    export type SubagentTransferMutationBody = BodyType<SubagentTransferInput>
+    export type SubagentTransferMutationError = ErrorType<void>
+
+    /**
+ * @summary Send SKZ to user by Telegram ID (approved subagents only)
+ */
+export const useSubagentTransfer = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof subagentTransfer>>, TError,{data: BodyType<SubagentTransferInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof subagentTransfer>>,
+        TError,
+        {data: BodyType<SubagentTransferInput>},
+        TContext
+      > => {
+      return useMutation(getSubagentTransferMutationOptions(options));
+    }
+
+export const getListSubagentTransfersUrl = (params: ListSubagentTransfersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/subagent/transfers?${stringifiedParams}` : `/api/subagent/transfers`
+}
+
+/**
+ * @summary Get transfer history for approved subagent
+ */
+export const listSubagentTransfers = async (params: ListSubagentTransfersParams, options?: RequestInit): Promise<Transaction[]> => {
+
+  return customFetch<Transaction[]>(getListSubagentTransfersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSubagentTransfersQueryKey = (params?: ListSubagentTransfersParams,) => {
+    return [
+    `/api/subagent/transfers`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListSubagentTransfersQueryOptions = <TData = Awaited<ReturnType<typeof listSubagentTransfers>>, TError = ErrorType<void>>(params: ListSubagentTransfersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSubagentTransfers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSubagentTransfersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSubagentTransfers>>> = ({ signal }) => listSubagentTransfers(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSubagentTransfers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSubagentTransfersQueryResult = NonNullable<Awaited<ReturnType<typeof listSubagentTransfers>>>
+export type ListSubagentTransfersQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get transfer history for approved subagent
+ */
+
+export function useListSubagentTransfers<TData = Awaited<ReturnType<typeof listSubagentTransfers>>, TError = ErrorType<void>>(
+ params: ListSubagentTransfersParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSubagentTransfers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSubagentTransfersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getListSubagentApplicationsUrl = () => {
+
+
+
+
+  return `/api/admin/subagent-applications`
+}
+
+/**
+ * @summary List all partner applications (admin)
+ */
+export const listSubagentApplications = async ( options?: RequestInit): Promise<SubagentApplicationResponse[]> => {
+
+  return customFetch<SubagentApplicationResponse[]>(getListSubagentApplicationsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSubagentApplicationsQueryKey = () => {
+    return [
+    `/api/admin/subagent-applications`
+    ] as const;
+    }
+
+
+export const getListSubagentApplicationsQueryOptions = <TData = Awaited<ReturnType<typeof listSubagentApplications>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSubagentApplications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSubagentApplicationsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSubagentApplications>>> = ({ signal }) => listSubagentApplications({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSubagentApplications>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSubagentApplicationsQueryResult = NonNullable<Awaited<ReturnType<typeof listSubagentApplications>>>
+export type ListSubagentApplicationsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all partner applications (admin)
+ */
+
+export function useListSubagentApplications<TData = Awaited<ReturnType<typeof listSubagentApplications>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSubagentApplications>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSubagentApplicationsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getReviewSubagentApplicationUrl = (applicationId: number,) => {
+
+
+
+
+  return `/api/admin/subagent-applications/${applicationId}`
+}
+
+/**
+ * @summary Approve or reject a partner application (admin)
+ */
+export const reviewSubagentApplication = async (applicationId: number,
+    subagentApplicationReview: SubagentApplicationReview, options?: RequestInit): Promise<SubagentApplicationResponse> => {
+
+  return customFetch<SubagentApplicationResponse>(getReviewSubagentApplicationUrl(applicationId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      subagentApplicationReview,)
+  }
+);}
+
+
+
+
+export const getReviewSubagentApplicationMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewSubagentApplication>>, TError,{applicationId: number;data: BodyType<SubagentApplicationReview>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reviewSubagentApplication>>, TError,{applicationId: number;data: BodyType<SubagentApplicationReview>}, TContext> => {
+
+const mutationKey = ['reviewSubagentApplication'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reviewSubagentApplication>>, {applicationId: number;data: BodyType<SubagentApplicationReview>}> = (props) => {
+          const {applicationId,data} = props ?? {};
+
+          return  reviewSubagentApplication(applicationId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReviewSubagentApplicationMutationResult = NonNullable<Awaited<ReturnType<typeof reviewSubagentApplication>>>
+    export type ReviewSubagentApplicationMutationBody = BodyType<SubagentApplicationReview>
+    export type ReviewSubagentApplicationMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Approve or reject a partner application (admin)
+ */
+export const useReviewSubagentApplication = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewSubagentApplication>>, TError,{applicationId: number;data: BodyType<SubagentApplicationReview>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reviewSubagentApplication>>,
+        TError,
+        {applicationId: number;data: BodyType<SubagentApplicationReview>},
+        TContext
+      > => {
+      return useMutation(getReviewSubagentApplicationMutationOptions(options));
+    }
 
 export const getGetSettingsUrl = () => {
 

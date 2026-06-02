@@ -908,6 +908,160 @@ export const GetSouqStatsResponse = zod.object({
 
 
 /**
+ * @summary Submit partner application
+ */
+export const ApplySubagentBody = zod.object({
+  "telegramId": zod.string(),
+  "userId": zod.number(),
+  "fullName": zod.string(),
+  "phone": zod.string(),
+  "email": zod.string(),
+  "company": zod.string().optional(),
+  "experience": zod.string(),
+  "motivation": zod.string()
+})
+
+export const ApplySubagentResponse = zod.object({
+  "id": zod.number(),
+  "userId": zod.number().optional(),
+  "telegramId": zod.string(),
+  "fullName": zod.string(),
+  "phone": zod.string(),
+  "email": zod.string(),
+  "company": zod.string().nullish(),
+  "experience": zod.string().optional(),
+  "motivation": zod.string().optional(),
+  "status": zod.string(),
+  "reviewNote": zod.string().nullish(),
+  "reviewedAt": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Get own application status
+ */
+export const GetSubagentMeQueryParams = zod.object({
+  "telegram_id": zod.coerce.string()
+})
+
+export const GetSubagentMeResponse = zod.object({
+  "application": zod.object({
+  "id": zod.number(),
+  "userId": zod.number().optional(),
+  "telegramId": zod.string(),
+  "fullName": zod.string(),
+  "phone": zod.string(),
+  "email": zod.string(),
+  "company": zod.string().nullish(),
+  "experience": zod.string().optional(),
+  "motivation": zod.string().optional(),
+  "status": zod.string(),
+  "reviewNote": zod.string().nullish(),
+  "reviewedAt": zod.string().nullish(),
+  "createdAt": zod.string()
+}),
+  "skzBalance": zod.number().optional()
+})
+
+
+/**
+ * @summary Send SKZ to user by Telegram ID (approved subagents only)
+ */
+export const SubagentTransferBody = zod.object({
+  "fromTelegramId": zod.string(),
+  "toTelegramId": zod.string(),
+  "amount": zod.number(),
+  "note": zod.string().optional()
+})
+
+export const SubagentTransferResponse = zod.object({
+  "id": zod.number(),
+  "userId": zod.number(),
+  "type": zod.enum(['deposit', 'withdraw', 'transfer_in', 'transfer_out', 'commission', 'refund']),
+  "amount": zod.number(),
+  "currency": zod.string().nullish(),
+  "txHash": zod.string().nullish(),
+  "status": zod.enum(['pending', 'confirmed', 'failed']),
+  "note": zod.string().nullish(),
+  "refUserId": zod.number().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Get transfer history for approved subagent
+ */
+export const ListSubagentTransfersQueryParams = zod.object({
+  "telegram_id": zod.coerce.string()
+})
+
+export const ListSubagentTransfersResponseItem = zod.object({
+  "id": zod.number(),
+  "userId": zod.number(),
+  "type": zod.enum(['deposit', 'withdraw', 'transfer_in', 'transfer_out', 'commission', 'refund']),
+  "amount": zod.number(),
+  "currency": zod.string().nullish(),
+  "txHash": zod.string().nullish(),
+  "status": zod.enum(['pending', 'confirmed', 'failed']),
+  "note": zod.string().nullish(),
+  "refUserId": zod.number().nullish(),
+  "createdAt": zod.string()
+})
+export const ListSubagentTransfersResponse = zod.array(ListSubagentTransfersResponseItem)
+
+
+/**
+ * @summary List all partner applications (admin)
+ */
+export const ListSubagentApplicationsResponseItem = zod.object({
+  "id": zod.number(),
+  "userId": zod.number().optional(),
+  "telegramId": zod.string(),
+  "fullName": zod.string(),
+  "phone": zod.string(),
+  "email": zod.string(),
+  "company": zod.string().nullish(),
+  "experience": zod.string().optional(),
+  "motivation": zod.string().optional(),
+  "status": zod.string(),
+  "reviewNote": zod.string().nullish(),
+  "reviewedAt": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+export const ListSubagentApplicationsResponse = zod.array(ListSubagentApplicationsResponseItem)
+
+
+/**
+ * @summary Approve or reject a partner application (admin)
+ */
+export const ReviewSubagentApplicationParams = zod.object({
+  "applicationId": zod.coerce.number()
+})
+
+export const ReviewSubagentApplicationBody = zod.object({
+  "status": zod.string(),
+  "reviewNote": zod.string().optional()
+})
+
+export const ReviewSubagentApplicationResponse = zod.object({
+  "id": zod.number(),
+  "userId": zod.number().optional(),
+  "telegramId": zod.string(),
+  "fullName": zod.string(),
+  "phone": zod.string(),
+  "email": zod.string(),
+  "company": zod.string().nullish(),
+  "experience": zod.string().optional(),
+  "motivation": zod.string().optional(),
+  "status": zod.string(),
+  "reviewNote": zod.string().nullish(),
+  "reviewedAt": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
  * @summary Get system settings
  */
 export const GetSettingsResponse = zod.object({
