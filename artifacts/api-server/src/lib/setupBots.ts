@@ -9,7 +9,12 @@ interface TelegramResponse {
 
 interface TelegramUpdate {
   update_id: number;
-  message?: { message_id: number; chat: { id: number }; text?: string };
+  message?: {
+    message_id: number;
+    chat: { id: number };
+    from?: { first_name?: string; username?: string };
+    text?: string;
+  };
 }
 
 async function tgCall(token: string, method: string, body: object): Promise<TelegramResponse> {
@@ -40,16 +45,147 @@ async function configureBot(
   await tgCall(token, "setMyShortDescription", { short_description: buttonText });
 }
 
-async function sendWelcome(token: string, chatId: number, appUrl: string, buttonText: string) {
+// ─── Message templates ────────────────────────────────────────────────────────
+
+function skillzWelcome(firstName: string): string {
+  const name = firstName ? ` ${firstName}` : "";
+  return (
+    `<b>SOUQRATES SKILLZ</b>\n` +
+    `<i>The Skill-Based Arena — Play, Compete &amp; Earn SKZ</i>\n\n` +
+    `Welcome${name}.\n\n` +
+    `<b>What awaits you:</b>\n` +
+    `— 50+ skill-based challenges across multiple categories\n` +
+    `— Ticket-based entry system (Bronze → Legendary)\n` +
+    `— Real SKZ prize pools paid instantly on win\n` +
+    `— Global leaderboard &amp; ranking system\n\n` +
+    `<b>Commands:</b>\n` +
+    `/games — Browse all active challenges\n` +
+    `/wallet — View your SKZ balance\n\n` +
+    `<b>SKZ</b> is the native currency of the Souqrates ecosystem.\n` +
+    `Deposit via TON or USDT to get started.`
+  );
+}
+
+function skillzWalletMessage(): string {
+  return (
+    `<b>SKZ Wallet</b>\n\n` +
+    `Your SKZ balance, deposit history, and transfer tools\n` +
+    `are all available inside the Skillz Arena.\n\n` +
+    `Supported deposits: <b>TON</b> · <b>USDT (TRC-20)</b>`
+  );
+}
+
+function skillzGamesMessage(): string {
+  return (
+    `<b>Active Challenges</b>\n\n` +
+    `Browse all available skill-based games inside the arena.\n\n` +
+    `<b>Entry tiers:</b>\n` +
+    `— Bronze · Silver · Gold · Platinum · Legendary\n\n` +
+    `Higher tier = higher prize pool.`
+  );
+}
+
+function souqWelcome(firstName: string): string {
+  const name = firstName ? ` ${firstName}` : "";
+  return (
+    `<b>SOUQRATES SOUQ</b>\n` +
+    `<i>The Digital Knowledge Marketplace</i>\n\n` +
+    `Welcome${name}.\n\n` +
+    `<b>What you will find:</b>\n` +
+    `— Premium digital books across 10+ categories\n` +
+    `— Exclusive titles: Business · Tech · Finance · Self-Development\n` +
+    `— Instant delivery — purchased books available immediately\n` +
+    `— All purchases powered by SKZ currency\n\n` +
+    `<b>Commands:</b>\n` +
+    `/products — Browse the full library\n` +
+    `/wallet — View your SKZ balance\n\n` +
+    `Use your <b>SKZ balance</b> to unlock any title in the marketplace.\n` +
+    `Deposit via TON or USDT from the Souqrates main app.`
+  );
+}
+
+function souqWalletMessage(): string {
+  return (
+    `<b>SKZ Wallet</b>\n\n` +
+    `Your SKZ balance and transaction history\n` +
+    `are available inside the Souq marketplace.\n\n` +
+    `Supported deposits: <b>TON</b> · <b>USDT (TRC-20)</b>`
+  );
+}
+
+function souqProductsMessage(): string {
+  return (
+    `<b>Digital Library</b>\n\n` +
+    `Browse 50+ premium digital books inside the Souq.\n\n` +
+    `<b>Categories:</b>\n` +
+    `Business · Technology · Finance · Self-Development\n` +
+    `Marketing · Psychology · Leadership · Design · Science · Health\n\n` +
+    `All titles priced in <b>SKZ</b>.`
+  );
+}
+
+// ─── Send message helper ──────────────────────────────────────────────────────
+
+async function sendMessage(
+  token: string,
+  chatId: number,
+  text: string,
+  appUrl: string,
+  buttonText: string
+) {
   await tgCall(token, "sendMessage", {
     chat_id: chatId,
-    text: "مرحباً — اضغط الزر أدناه لفتح التطبيق داخل تيليغرام:",
-    reply_markup: { inline_keyboard: [[{ text: buttonText, web_app: { url: appUrl } }]] },
+    text,
+    parse_mode: "HTML",
+    reply_markup: {
+      inline_keyboard: [[{ text: `Open ${buttonText}`, web_app: { url: appUrl } }]],
+    },
   });
 }
 
-// Long-poll loop (used when no webhook URL is configured)
-async function startPolling(name: string, token: string, appUrl: string, buttonText: string) {
+// ─── Dispatch command ─────────────────────────────────────────────────────────
+
+async function handleSkillzCommand(
+  token: string,
+  chatId: number,
+  firstName: string,
+  command: string
+) {
+  const appUrl = "https://souqrates.com/skillz/";
+
+  if (command.startsWith("/wallet")) {
+    await sendMessage(token, chatId, skillzWalletMessage(), appUrl, "Skillz Arena");
+  } else if (command.startsWith("/games")) {
+    await sendMessage(token, chatId, skillzGamesMessage(), appUrl, "Skillz Arena");
+  } else {
+    await sendMessage(token, chatId, skillzWelcome(firstName), appUrl, "Skillz Arena");
+  }
+}
+
+async function handleSouqCommand(
+  token: string,
+  chatId: number,
+  firstName: string,
+  command: string
+) {
+  const appUrl = "https://souqrates.com/souq/";
+
+  if (command.startsWith("/wallet")) {
+    await sendMessage(token, chatId, souqWalletMessage(), appUrl, "Souq Marketplace");
+  } else if (command.startsWith("/products")) {
+    await sendMessage(token, chatId, souqProductsMessage(), appUrl, "Souq Marketplace");
+  } else {
+    await sendMessage(token, chatId, souqWelcome(firstName), appUrl, "Souq Marketplace");
+  }
+}
+
+// ─── Long-poll loop ───────────────────────────────────────────────────────────
+
+async function startPolling(
+  name: string,
+  token: string,
+  handler: (token: string, chatId: number, firstName: string, command: string) => Promise<void>
+) {
   let offset = 0;
   await tgCall(token, "deleteWebhook", { drop_pending_updates: false });
   logger.info({ name }, "Bot polling started");
@@ -65,11 +201,14 @@ async function startPolling(name: string, token: string, appUrl: string, buttonT
 
       for (const update of data.result) {
         offset = update.update_id + 1;
-        const text = update.message?.text ?? "";
-        const chatId = update.message?.chat.id;
+        const text      = update.message?.text ?? "";
+        const chatId    = update.message?.chat.id;
+        const firstName = update.message?.from?.first_name ?? "";
         if (!chatId) continue;
-        if (text.startsWith("/start") || text.startsWith("/wallet") || text.startsWith("/games") || text.startsWith("/products")) {
-          await sendWelcome(token, chatId, appUrl, buttonText);
+
+        const knownCommands = ["/start", "/wallet", "/games", "/products"];
+        if (knownCommands.some((c) => text.startsWith(c))) {
+          await handler(token, chatId, firstName, text);
         }
       }
     } catch (err: unknown) {
@@ -82,7 +221,8 @@ async function startPolling(name: string, token: string, appUrl: string, buttonT
   }
 }
 
-// Register Telegram webhook (used when Contabo URL is configured)
+// ─── Webhook registration ─────────────────────────────────────────────────────
+
 async function registerWebhook(name: string, token: string, webhookUrl: string) {
   const result = await tgCall(token, "setWebhook", {
     url: webhookUrl,
@@ -96,6 +236,8 @@ async function registerWebhook(name: string, token: string, webhookUrl: string) 
   }
 }
 
+// ─── Setup entry point ────────────────────────────────────────────────────────
+
 export async function setupTelegramBots(): Promise<void> {
   const skillzToken = process.env["SKILLZ_BOT_TOKEN"];
   const souqToken   = process.env["SOUQ_BOT_TOKEN"];
@@ -105,7 +247,6 @@ export async function setupTelegramBots(): Promise<void> {
     return;
   }
 
-  // Read contaboWebhookUrl from settings to decide polling vs webhook
   let contaboWebhookUrl: string | null = null;
   try {
     const rows = await db.select().from(settingsTable).limit(1);
@@ -118,32 +259,32 @@ export async function setupTelegramBots(): Promise<void> {
 
   try {
     if (skillzToken) {
-      await configureBot("Skillz", skillzToken, "https://souqrates.com/skillz/", "Play & Win SKZ", [
+      await configureBot("Skillz", skillzToken, "https://souqrates.com/skillz/", "Skillz Arena", [
         { command: "start",  description: "Open Skillz Arena" },
-        { command: "games",  description: "Browse games" },
-        { command: "wallet", description: "My SKZ balance" },
+        { command: "games",  description: "Browse active challenges" },
+        { command: "wallet", description: "View SKZ balance" },
       ]);
 
       if (useWebhook) {
         await registerWebhook("Skillz", skillzToken, `${contaboWebhookUrl}/api/telegram/webhook/skillz`);
       } else {
-        startPolling("Skillz", skillzToken, "https://souqrates.com/skillz/", "Play & Win SKZ").catch(
+        startPolling("Skillz", skillzToken, handleSkillzCommand).catch(
           (err) => logger.error({ err }, "Skillz polling crashed")
         );
       }
     }
 
     if (souqToken) {
-      await configureBot("Souq", souqToken, "https://souqrates.com/souq/", "Open Souq", [
+      await configureBot("Souq", souqToken, "https://souqrates.com/souq/", "Souq Marketplace", [
         { command: "start",    description: "Open Souq Marketplace" },
-        { command: "products", description: "Browse products" },
-        { command: "wallet",   description: "My SKZ balance" },
+        { command: "products", description: "Browse the digital library" },
+        { command: "wallet",   description: "View SKZ balance" },
       ]);
 
       if (useWebhook) {
         await registerWebhook("Souq", souqToken, `${contaboWebhookUrl}/api/telegram/webhook/souq`);
       } else {
-        startPolling("Souq", souqToken, "https://souqrates.com/souq/", "Open Souq").catch(
+        startPolling("Souq", souqToken, handleSouqCommand).catch(
           (err) => logger.error({ err }, "Souq polling crashed")
         );
       }
@@ -155,8 +296,8 @@ export async function setupTelegramBots(): Promise<void> {
   }
 }
 
-// Express handler for incoming Telegram webhook POST requests
-// Mount at: POST /api/telegram/webhook/:botType
+// ─── Webhook handler (Express route) ─────────────────────────────────────────
+
 export async function handleWebhookUpdate(
   botType: "skillz" | "souq",
   body: TelegramUpdate
@@ -164,16 +305,19 @@ export async function handleWebhookUpdate(
   const skillzToken = process.env["SKILLZ_BOT_TOKEN"];
   const souqToken   = process.env["SOUQ_BOT_TOKEN"];
   const token = botType === "skillz" ? skillzToken : souqToken;
-  const appUrl    = botType === "skillz" ? "https://souqrates.com/skillz/" : "https://souqrates.com/souq/";
-  const buttonText = botType === "skillz" ? "Play & Win SKZ" : "Open Souq";
-
   if (!token) return;
 
-  const text   = body.message?.text ?? "";
-  const chatId = body.message?.chat.id;
+  const text      = body.message?.text ?? "";
+  const chatId    = body.message?.chat.id;
+  const firstName = body.message?.from?.first_name ?? "";
   if (!chatId) return;
 
-  if (text.startsWith("/start") || text.startsWith("/wallet") || text.startsWith("/games") || text.startsWith("/products")) {
-    await sendWelcome(token, chatId, appUrl, buttonText);
+  const knownCommands = ["/start", "/wallet", "/games", "/products"];
+  if (!knownCommands.some((c) => text.startsWith(c))) return;
+
+  if (botType === "skillz") {
+    await handleSkillzCommand(token, chatId, firstName, text);
+  } else {
+    await handleSouqCommand(token, chatId, firstName, text);
   }
 }
