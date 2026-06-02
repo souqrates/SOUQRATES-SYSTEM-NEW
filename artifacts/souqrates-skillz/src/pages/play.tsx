@@ -53,6 +53,8 @@ export default function Play() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const gameEndedRef = useRef(false);
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const comboRef = useRef(0);
+  const [combo, setCombo] = useState(0);
 
   function playTone(freq: number, dur: number, type: OscillatorType = "sine", vol = 0.3) {
     try {
@@ -129,6 +131,15 @@ export default function Play() {
     const engine = getEngine(gameSlug, gameCategory);
 
     function updateScore(delta: number) {
+      if (delta > 0) {
+        comboRef.current++;
+        setCombo(comboRef.current);
+        const multiplier = Math.min(4, 1 + Math.floor(comboRef.current / 4) * 0.5);
+        delta = Math.round(delta * multiplier);
+      } else {
+        comboRef.current = 0;
+        setCombo(0);
+      }
       scoreRef.current = Math.max(0, scoreRef.current + delta);
       setScore(scoreRef.current);
       if (scoreRef.current >= cfg.targetScore) endGame(scoreRef.current);
@@ -149,13 +160,13 @@ export default function Play() {
       const LANES = 3;
       const LW = W / LANES;
       const HIT_Y = H * 0.60;
-      const OUTER = 48, INNER = 20;
+      const OUTER = 36, INNER = 13;
 
       interface Note { lane: number; y: number; sym: string; color: string; hit: boolean; anim: number; }
       let notes: Note[] = [];
       let spawnT = 0;
       let flashText = "", flashColor = "#fff", flashTimer = 0;
-      let speed = 2.8;
+      let speed = 4.8;
 
       function spawn() {
         const lane = Math.floor(Math.random() * LANES);
@@ -204,8 +215,8 @@ export default function Play() {
 
         // Spawn & speed
         spawnT++;
-        speed = 2.8 + scoreRef.current / 150;
-        const interval = Math.max(22, 55 - Math.floor(scoreRef.current / 80));
+        speed = 4.8 + scoreRef.current / 100;
+        const interval = Math.max(13, 40 - Math.floor(scoreRef.current / 60));
         if (spawnT >= interval) { spawn(); spawnT = 0; }
 
         // Draw notes
@@ -261,11 +272,11 @@ export default function Play() {
       const CX = W / 2, CY = H / 2;
       const R = Math.min(W, H) * 0.38;
       let angle = -Math.PI / 2; // needle starts at top
-      let angSpeed = 0.022 + Math.random() * 0.008;
+      let angSpeed = 0.042 + Math.random() * 0.018;
       let markers: { angle: number; hit: boolean; hitAnim: number }[] = [];
       let flashText = "", flashColor = "#fff", flashTimer = 0;
       let hitRing = 0;
-      const TOL = 0.14; // radians tolerance
+      const TOL = 0.082; // radians tolerance
 
       function addMarker() {
         const blocked = markers.map(m => m.angle);
@@ -285,7 +296,7 @@ export default function Play() {
           hit.hit = true; hit.hitAnim = 1;
           updateScore(cfg.correctHitValue); flashText = "CRACKED!"; flashColor = "#f59e0b";
           flashTimer = 35; hitRing = 1; playPerfect();
-          angSpeed = Math.min(0.07, angSpeed + 0.005);
+          angSpeed = Math.min(0.14, angSpeed + 0.010);
           setTimeout(() => { if (!gameEndedRef.current) addMarker(); }, 400);
         } else {
           updateScore(-cfg.wrongHitPenalty); flashText = "MISS"; flashColor = "#ef4444"; flashTimer = 20; playMiss();
@@ -391,8 +402,8 @@ export default function Play() {
       const BX = W / 2 - 30, BY = 60, BH = H - 140, BW = 60;
       let needleY = BY + BH * 0.5;
       let needleDir = -1;
-      let needleSpeed = 3.5;
-      let greenH = BH * 0.22; // height of green zone (shrinks over time)
+      let needleSpeed = 6.5;
+      let greenH = BH * 0.13; // height of green zone (shrinks over time)
       let energy = 50; // 0-100
       let flashText = "", flashColor = "#fff", flashTimer = 0;
       let sparks: { x: number; y: number; vx: number; vy: number; life: number; color: string }[] = [];
@@ -411,10 +422,10 @@ export default function Play() {
         if (inGreen) {
           energy = Math.min(100, energy + 12);
           hitCount++;
-          if (hitCount % 5 === 0 && greenH > BH * 0.06) greenH -= BH * 0.025;
+          if (hitCount % 4 === 0 && greenH > BH * 0.04) greenH -= BH * 0.022;
           updateScore(cfg.correctHitValue); flashText = "CHARGED!"; flashColor = "#10b981"; flashTimer = 30;
           emitSparks(BX + BW / 2, needleY, "#10b981"); playHit();
-          needleSpeed = Math.min(10, needleSpeed + 0.25);
+          needleSpeed = Math.min(16, needleSpeed + 0.55);
         } else {
           energy = Math.max(0, energy - 15);
           updateScore(-cfg.wrongHitPenalty); flashText = "SHOCK!"; flashColor = "#ef4444"; flashTimer = 25;
@@ -522,7 +533,7 @@ export default function Play() {
 
       function spawnMeteor() {
         const cidx = Math.floor(Math.random() * METEOR_COLS.length);
-        meteors.push({ x: 30 + Math.random() * (W - 60), y: -20, color: METEOR_COLS[cidx], cidx, vy: 2.5 + Math.random() * 2 + scoreRef.current / 200, r: 14 + Math.random() * 8, tail: [] });
+        meteors.push({ x: 30 + Math.random() * (W - 60), y: -20, color: METEOR_COLS[cidx], cidx, vy: 4.2 + Math.random() * 3.5 + scoreRef.current / 150, r: 14 + Math.random() * 8, tail: [] });
       }
 
       canvas.addEventListener("touchstart", (e: TouchEvent) => {
@@ -559,7 +570,7 @@ export default function Play() {
 
         // Spawn
         spawnT++;
-        if (spawnT >= Math.max(35, 80 - Math.floor(scoreRef.current / 60))) { spawnMeteor(); spawnT = 0; }
+        if (spawnT >= Math.max(18, 58 - Math.floor(scoreRef.current / 45))) { spawnMeteor(); spawnT = 0; }
 
         // Meteors
         for (let i = meteors.length - 1; i >= 0; i--) {
@@ -656,7 +667,7 @@ export default function Play() {
       let flashText = "", flashColor = "#fff", flashTimer = 0;
       let hitFlash = 0;
       let spawnT = 0;
-      const GATE_SPEED_BASE = 3.5;
+      const GATE_SPEED_BASE = 6.5;
 
       function spawnGate() {
         const openRow = Math.floor(Math.random() * ROWS);
@@ -712,8 +723,8 @@ export default function Play() {
 
         // Gates
         spawnT++;
-        const gSpeed = Math.min(9, GATE_SPEED_BASE + scoreRef.current / 200);
-        const interval = Math.max(60, 120 - Math.floor(scoreRef.current / 50));
+        const gSpeed = Math.min(14, GATE_SPEED_BASE + scoreRef.current / 150);
+        const interval = Math.max(36, 88 - Math.floor(scoreRef.current / 38));
         if (spawnT >= interval) { spawnGate(); spawnT = 0; }
 
         for (let i = gates.length - 1; i >= 0; i--) {
@@ -775,7 +786,7 @@ export default function Play() {
       const SYMS = ["₿", "Ξ", "Ŧ", "◎", "Ⓢ", "◈"];
       interface Block { x: number; y: number; w: number; color: string; sym: string; }
       let stack: Block[] = [];
-      let current = { x: 0, w: W * 0.65, dir: 1, speed: 3.5 };
+      let current = { x: 0, w: W * 0.65, dir: 1, speed: 6.5 };
       let phase: "moving" | "dropped" | "failed" = "moving";
       let flashText = "", flashColor = "#fff", flashTimer = 0;
       let particles: { x: number; y: number; vx: number; vy: number; life: number; color: string }[] = [];
@@ -839,7 +850,7 @@ export default function Play() {
 
         // Update current
         const newW = Math.max(10, newBlock.w);
-        current = { x: newBlock.x, w: newW, dir: Math.random() < 0.5 ? 1 : -1, speed: Math.min(10, 3.5 + blockCount * 0.3) };
+        current = { x: newBlock.x, w: newW, dir: Math.random() < 0.5 ? 1 : -1, speed: Math.min(16, 6.5 + blockCount * 0.55) };
 
         // Scroll view if needed
         if (stack.length > 14) stack.shift();
@@ -946,7 +957,7 @@ export default function Play() {
       let trail: { x: number; y: number }[] = [];
       let spawnT = 0;
       const BALL_X = 80;
-      const GRAV_STR = 0.35;
+      const GRAV_STR = 0.58;
       const WALL_COLORS = ["#a855f7", "#06b6d4", "#f97316", "#ec4899", "#10b981"];
       let flipFlash = 0;
       let dist = 0;
@@ -962,7 +973,7 @@ export default function Play() {
       canvas.addEventListener("touchstart", onTouch, { passive: false });
 
       function spawnWall() {
-        const gapH = Math.max(110 - Math.floor(scoreRef.current / 80) * 6, 65);
+        const gapH = Math.max(82 - Math.floor(scoreRef.current / 65) * 6, 48);
         const range = (BOT_WALL - TOP_WALL) - gapH - 20;
         const gapY = TOP_WALL + 10 + Math.random() * range;
         const color = WALL_COLORS[walls.length % WALL_COLORS.length];
@@ -1027,9 +1038,9 @@ export default function Play() {
         ctx.fillText(gravDir === 1 ? "▼" : "▲", BALL_X, arrY);
 
         // Spawn walls
-        const wSpeed = Math.min(8, 3 + scoreRef.current / 150);
+        const wSpeed = Math.min(12, 5 + scoreRef.current / 110);
         spawnT++;
-        if (spawnT >= Math.max(80, 150 - Math.floor(scoreRef.current / 40))) { spawnWall(); spawnT = 0; }
+        if (spawnT >= Math.max(52, 112 - Math.floor(scoreRef.current / 32))) { spawnWall(); spawnT = 0; }
 
         for (let i = walls.length - 1; i >= 0; i--) {
           const w = walls[i];
@@ -1102,15 +1113,15 @@ export default function Play() {
       function spawnObj() {
         const side = Math.floor(Math.random() * 4);
         let sx: number, sy: number, vx: number, vy: number;
-        const speed = 1.5 + Math.random() * 2 + scoreRef.current / 300;
+        const speed = 3.0 + Math.random() * 3 + scoreRef.current / 200;
         if (side === 0) { sx = Math.random() * W; sy = -30; vx = (Math.random() - 0.5) * speed; vy = speed; }
         else if (side === 1) { sx = W + 30; sy = Math.random() * H; vx = -speed; vy = (Math.random() - 0.5) * speed; }
         else if (side === 2) { sx = Math.random() * W; sy = H + 30; vx = (Math.random() - 0.5) * speed; vy = -speed; }
         else { sx = -30; sy = Math.random() * H; vx = speed; vy = (Math.random() - 0.5) * speed; }
         const rnd = Math.random();
         let type: "enemy" | "friend" | "bomb";
-        if (rnd < 0.55) type = "enemy";
-        else if (rnd < 0.85) type = "friend";
+        if (rnd < 0.48) type = "enemy";
+        else if (rnd < 0.76) type = "friend";
         else type = "bomb";
         const color = type === "enemy" ? "#ef4444" : type === "friend" ? "#10b981" : "#374151";
         const sym = type === "enemy" ? ENEMY_SYMS[Math.floor(Math.random() * ENEMY_SYMS.length)] : type === "friend" ? FRIEND_SYMS[Math.floor(Math.random() * FRIEND_SYMS.length)] : BOMB_SYM;
@@ -1184,7 +1195,7 @@ export default function Play() {
 
         // Spawn
         spawnT++;
-        if (spawnT >= Math.max(40, 80 - Math.floor(scoreRef.current / 80))) { spawnObj(); spawnT = 0; }
+        if (spawnT >= Math.max(24, 62 - Math.floor(scoreRef.current / 60))) { spawnObj(); spawnT = 0; }
 
         // Objects
         for (let i = objs.length - 1; i >= 0; i--) {
@@ -1283,8 +1294,8 @@ export default function Play() {
 
       function showSequence() {
         phase = "show"; litCell = -1; let i = 0;
-        const showDur = Math.max(220, 500 - round * 25);
-        const blankDur = Math.max(60, 150 - round * 8);
+        const showDur = Math.max(140, 400 - round * 32);
+        const blankDur = Math.max(38, 110 - round * 11);
         function next() {
           if (cleanedUp) return;
           if (i < sequence.length) {
@@ -1409,7 +1420,7 @@ export default function Play() {
     {
       const CX = W / 2, CY = H / 2 - 10;
       const CORE_R = 22, SHIELD_R = 85;
-      const SHIELD_ARC = Math.PI * 0.42; // ~75° arc
+      const SHIELD_ARC = Math.PI * 0.28; // ~50° arc — harder to block
       let shieldAngle = -Math.PI / 2;
       interface Proj { angle: number; dist: number; speed: number; color: string; blocked: boolean; blockAnim: number; }
       let projs: Proj[] = [];
@@ -1423,7 +1434,7 @@ export default function Play() {
 
       function spawnProj() {
         const a = Math.random() * Math.PI * 2;
-        const speed = 1.5 + Math.random() * 1.5 + scoreRef.current / 250;
+        const speed = 3.0 + Math.random() * 2.5 + scoreRef.current / 170;
         projs.push({ angle: a, dist: SHIELD_R + 100 + Math.random() * 80, speed, color: PROJ_COLS[Math.floor(Math.random() * PROJ_COLS.length)], blocked: false, blockAnim: 0 });
       }
 
@@ -1471,7 +1482,7 @@ export default function Play() {
 
         // Spawn projectiles
         spawnT++;
-        const interval = Math.max(40, 100 - Math.floor(scoreRef.current / 60));
+        const interval = Math.max(24, 72 - Math.floor(scoreRef.current / 48));
         if (spawnT >= interval) { spawnProj(); spawnT = 0; }
 
         // Projectiles
@@ -1600,73 +1611,142 @@ export default function Play() {
     gravity: "GRAVITY FLIP", slasher: "BOT SLASHER", simon: "CRYPTO SEQ", shield: "SHIELD ARC",
   };
 
+  const comboMultiplier = combo > 0 ? Math.min(4, 1 + Math.floor(combo / 4) * 0.5) : 1;
+
   return (
     <div className="fixed inset-0 bg-[#08080f] flex flex-col overflow-hidden">
       {/* HUD */}
-      <div className="relative z-10 flex items-center justify-between px-4 py-2.5 bg-black/50 backdrop-blur border-b border-purple-900/40">
-        <button onClick={() => { if (!gameEndedRef.current) endGame(scoreRef.current); navigate("/"); }} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors">
-          <X className="w-4 h-4 text-muted-foreground" />
+      <div className="relative z-10 flex items-center justify-between px-3 py-2 border-b border-purple-900/50"
+        style={{ background: "linear-gradient(180deg, rgba(10,4,28,0.98) 0%, rgba(8,8,15,0.95) 100%)", boxShadow: "0 1px 0 rgba(168,85,247,0.15), 0 4px 20px rgba(0,0,0,0.5)" }}>
+        <button onClick={() => { if (!gameEndedRef.current) endGame(scoreRef.current); navigate("/"); }} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors flex-shrink-0">
+          <X className="w-4 h-4 text-purple-500/70" />
         </button>
-        <div className="flex items-center gap-5">
-          <div className="text-center">
-            <div className="text-[9px] text-purple-400 tracking-widest uppercase">Score</div>
-            <div className="text-xl font-black text-foreground tabular-nums leading-tight">{score}</div>
+        <div className="flex items-center gap-3">
+          <div className="text-center min-w-[48px]">
+            <div className="text-[8px] text-purple-400/80 tracking-[0.2em] uppercase font-bold">Score</div>
+            <div className="text-lg font-black tabular-nums leading-tight" style={{ color: "#e9d5ff", textShadow: "0 0 12px rgba(168,85,247,0.6)" }}>{score}</div>
           </div>
-          <div className="text-center">
-            <div className="text-[9px] text-amber-400 tracking-widest uppercase">Target</div>
-            <div className="text-xl font-black text-accent tabular-nums leading-tight">{targetScore}</div>
+          {combo >= 2 && (
+            <div className="text-center px-2 py-0.5 rounded" style={{ background: "rgba(245,158,11,0.15)", border: "1px solid rgba(245,158,11,0.35)" }}>
+              <div className="text-[8px] text-amber-400/80 tracking-widest uppercase font-bold">Combo</div>
+              <div className="text-base font-black tabular-nums leading-tight text-amber-400">{combo}x</div>
+            </div>
+          )}
+          <div className="text-center min-w-[48px]">
+            <div className="text-[8px] text-amber-400/80 tracking-[0.2em] uppercase font-bold">Target</div>
+            <div className="text-lg font-black tabular-nums leading-tight text-amber-400">{targetScore}</div>
           </div>
-          <div className="text-center">
-            <div className="text-[9px] text-purple-400 tracking-widest uppercase">Time</div>
-            <div className={`text-xl font-black tabular-nums leading-tight ${timeWarning ? "text-red-400 animate-pulse" : "text-foreground"}`}>{timeLeft}s</div>
+          <div className="text-center min-w-[40px]">
+            <div className="text-[8px] text-purple-400/80 tracking-[0.2em] uppercase font-bold">Time</div>
+            <div className={`text-lg font-black tabular-nums leading-tight ${timeWarning ? "text-red-400 animate-pulse" : "text-white"}`}
+              style={timeWarning ? { textShadow: "0 0 16px rgba(239,68,68,0.8)" } : {}}>
+              {timeLeft}s
+            </div>
           </div>
         </div>
-        <div className="w-8" />
+        <div className="w-8 flex-shrink-0" />
       </div>
 
-      {/* Progress bar */}
-      <div className="h-1.5 bg-black/40 relative">
-        <div className="absolute inset-y-0 left-0 transition-all duration-200 rounded-r" style={{ width: `${progressPct}%`, background: progressPct >= 80 ? "linear-gradient(90deg,#a855f7,#f59e0b)" : progressPct >= 40 ? "#7c3aed" : "#4c1d95" }} />
-        <div className="absolute top-0 right-0 bottom-0 w-0.5 bg-amber-400" />
+      {/* Progress bar — dual layer */}
+      <div className="h-2 relative overflow-hidden" style={{ background: "rgba(0,0,0,0.6)" }}>
+        <div className="absolute inset-y-0 left-0 transition-all duration-300"
+          style={{
+            width: `${progressPct}%`,
+            background: progressPct >= 80
+              ? "linear-gradient(90deg,#7c3aed,#a855f7,#f59e0b)"
+              : progressPct >= 50 ? "linear-gradient(90deg,#4c1d95,#7c3aed,#a855f7)"
+              : "linear-gradient(90deg,#1e1b4b,#4c1d95)",
+            boxShadow: progressPct >= 50 ? "0 0 8px rgba(168,85,247,0.6)" : "none"
+          }} />
+        <div className="absolute top-0 right-0 bottom-0 w-0.5 bg-amber-400" style={{ boxShadow: "0 0 6px #f59e0b" }} />
+        {comboMultiplier > 1 && (
+          <div className="absolute inset-0 opacity-30 animate-pulse"
+            style={{ background: "linear-gradient(90deg,transparent,rgba(245,158,11,0.4),transparent)", backgroundSize: "200% 100%", animation: "shimmer 1s infinite" }} />
+        )}
       </div>
 
-      {/* Engine label */}
-      <div className="text-center py-1 text-[9px] font-bold tracking-[0.25em] text-purple-500/50 uppercase">
-        {game.name} &mdash; {ENGINE_LABELS[engineName] || engineName.toUpperCase()}
+      {/* Game label */}
+      <div className="flex items-center justify-between px-4 py-0.5" style={{ background: "rgba(0,0,0,0.3)" }}>
+        <div className="text-[8px] font-bold tracking-[0.22em] text-purple-500/60 uppercase">{game.name}</div>
+        <div className="text-[8px] font-bold tracking-[0.15em] text-purple-500/40 uppercase">{ENGINE_LABELS[engineName] || engineName.toUpperCase()}</div>
       </div>
 
-      {/* Canvas */}
-      <div className="flex-1 relative">
+      {/* Canvas area */}
+      <div className="flex-1 relative" style={{ overflow: "hidden" }}>
+        {/* Scanline overlay for CRT feel */}
+        <div className="absolute inset-0 z-10 pointer-events-none"
+          style={{
+            backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.12) 2px, rgba(0,0,0,0.12) 4px)",
+            mixBlendMode: "multiply"
+          }} />
+        {/* Vignette */}
+        <div className="absolute inset-0 z-10 pointer-events-none"
+          style={{ background: "radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%)" }} />
+        {/* Edge glow */}
+        <div className="absolute inset-0 z-10 pointer-events-none rounded"
+          style={{ boxShadow: "inset 0 0 40px rgba(168,85,247,0.08), inset 0 0 2px rgba(168,85,247,0.2)" }} />
+
         {gameState === "countdown" && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center" style={{ background: "rgba(8,8,15,0.85)", backdropFilter: "blur(4px)" }}>
+          <div className="absolute inset-0 z-20 flex items-center justify-center" style={{ background: "rgba(4,2,18,0.92)", backdropFilter: "blur(6px)" }}>
             <div className="text-center">
-              <div className="text-xs text-purple-400 tracking-[0.3em] mb-3 uppercase">Get Ready</div>
-              <div className="text-9xl font-black text-primary" style={{ textShadow: "0 0 60px rgba(168,85,247,0.9), 0 0 120px rgba(168,85,247,0.4)" }}>{countdown}</div>
-              <div className="mt-4 text-xs text-muted-foreground tracking-widest">{game.name.toUpperCase()}</div>
+              <div className="text-[10px] text-purple-400 tracking-[0.4em] mb-4 uppercase font-bold" style={{ letterSpacing: "0.5em" }}>READY TO PLAY</div>
+              <div className="text-[100px] font-black leading-none" style={{
+                color: "#a855f7",
+                textShadow: "0 0 60px rgba(168,85,247,1), 0 0 120px rgba(168,85,247,0.6), 0 0 200px rgba(168,85,247,0.3)",
+                fontFamily: "Orbitron, monospace"
+              }}>{countdown}</div>
+              <div className="mt-5 text-xs text-muted-foreground tracking-[0.3em] uppercase">{game.name}</div>
             </div>
           </div>
         )}
-        <canvas ref={canvasRef} width={400} height={620} className="w-full h-full" style={{ cursor: "crosshair", touchAction: "none" }} />
+        <canvas ref={canvasRef} width={400} height={620} className="w-full h-full" style={{ cursor: "crosshair", touchAction: "none", display: "block" }} />
       </div>
 
       {/* Result overlay */}
       {gameState === "ended" && sessionResult && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center" style={{ background: "rgba(4,4,14,0.9)", backdropFilter: "blur(8px)" }}>
-          <div className="w-full max-w-sm mx-5 rounded-2xl border p-8 text-center space-y-5"
-            style={{ background: sessionResult.won ? "rgba(16,185,129,0.07)" : "rgba(239,68,68,0.07)", borderColor: sessionResult.won ? "rgba(16,185,129,0.35)" : "rgba(239,68,68,0.25)" }}>
-            <div className="text-6xl font-black tracking-wider" style={{ color: sessionResult.won ? "#10b981" : "#ef4444", textShadow: `0 0 40px ${sessionResult.won ? "#10b981" : "#ef4444"}60` }}>
+        <div className="absolute inset-0 z-30 flex items-center justify-center" style={{ background: "rgba(2,2,12,0.94)", backdropFilter: "blur(10px)" }}>
+          <div className="w-full max-w-sm mx-4 rounded-2xl border p-7 text-center space-y-4"
+            style={{
+              background: sessionResult.won
+                ? "linear-gradient(135deg, rgba(16,185,129,0.12) 0%, rgba(8,8,15,0.95) 100%)"
+                : "linear-gradient(135deg, rgba(239,68,68,0.10) 0%, rgba(8,8,15,0.95) 100%)",
+              borderColor: sessionResult.won ? "rgba(16,185,129,0.4)" : "rgba(239,68,68,0.3)",
+              boxShadow: sessionResult.won ? "0 0 60px rgba(16,185,129,0.15)" : "0 0 60px rgba(239,68,68,0.12)"
+            }}>
+            <div className="text-5xl font-black tracking-[0.08em]" style={{
+              color: sessionResult.won ? "#10b981" : "#ef4444",
+              textShadow: `0 0 50px ${sessionResult.won ? "rgba(16,185,129,0.8)" : "rgba(239,68,68,0.7)"}, 0 0 100px ${sessionResult.won ? "rgba(16,185,129,0.3)" : "rgba(239,68,68,0.2)"}`
+            }}>
               {sessionResult.won ? "VICTORY" : "DEFEAT"}
             </div>
-            <div className="space-y-2.5">
-              <div className="flex justify-between text-sm"><span className="text-muted-foreground">Final Score</span><span className="font-bold">{sessionResult.finalScore}</span></div>
-              <div className="flex justify-between text-sm"><span className="text-muted-foreground">Target</span><span className="font-bold">{sessionResult.targetScore}</span></div>
+            <div className="h-px" style={{ background: sessionResult.won ? "rgba(16,185,129,0.25)" : "rgba(239,68,68,0.2)" }} />
+            <div className="space-y-2.5 text-sm">
+              <div className="flex justify-between items-center">
+                <span className="text-white/50 tracking-wider uppercase text-[11px]">Final Score</span>
+                <span className="font-black text-white text-base">{sessionResult.finalScore}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-white/50 tracking-wider uppercase text-[11px]">Target</span>
+                <span className="font-bold text-white/80">{sessionResult.targetScore}</span>
+              </div>
               {sessionResult.won && (
-                <div className="flex justify-between text-sm"><span className="text-amber-400">Prize Earned</span><span className="font-black text-accent">+{sessionResult.prize.toFixed(2)} SKZ</span></div>
+                <div className="flex justify-between items-center mt-1 pt-2" style={{ borderTop: "1px solid rgba(245,158,11,0.2)" }}>
+                  <span className="text-amber-400 tracking-wider uppercase text-[11px] font-bold">SKZ Earned</span>
+                  <span className="font-black text-amber-400 text-lg" style={{ textShadow: "0 0 20px rgba(245,158,11,0.6)" }}>+{sessionResult.prize.toFixed(2)}</span>
+                </div>
               )}
             </div>
-            <div className="flex gap-3 pt-1">
-              <button onClick={() => navigate("/")} className="flex-1 py-3 rounded-xl font-bold text-sm tracking-wider bg-muted text-muted-foreground hover:text-foreground transition-colors">Lobby</button>
-              <button onClick={() => navigate(`/game/${game.id}`)} className="flex-1 py-3 rounded-xl font-black text-sm tracking-wider bg-primary text-primary-foreground" style={{ boxShadow: "0 0 20px rgba(168,85,247,0.4)" }}>Play Again</button>
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => navigate("/")}
+                className="flex-1 py-3 rounded-xl font-bold text-sm tracking-wider transition-all"
+                style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.6)", border: "1px solid rgba(255,255,255,0.1)" }}>
+                LOBBY
+              </button>
+              <button onClick={() => navigate(`/game/${game.id}`)}
+                className="flex-1 py-3 rounded-xl font-black text-sm tracking-wider"
+                style={{ background: "linear-gradient(135deg,#7c3aed,#a855f7)", color: "#fff", boxShadow: "0 0 24px rgba(168,85,247,0.5)" }}>
+                RETRY
+              </button>
             </div>
           </div>
         </div>
