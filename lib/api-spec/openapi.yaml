@@ -1,22 +1,34 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Souqrates System API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: users
+    description: User management
+  - name: wallet
+    description: SKZ wallet and transactions
+  - name: referrals
+    description: Referral system
+  - name: bots
+    description: Sub-bot management
+  - name: admin
+    description: Admin manager panel
+  - name: settings
+    description: System settings
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
-      tags: [health]
+      tags:
+        - health
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +36,440 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /users/register:
+    post:
+      operationId: registerUser
+      tags:
+        - users
+      summary: Register or login a Telegram user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserRegisterInput"
+      responses:
+        "200":
+          description: User registered or fetched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/me:
+    get:
+      operationId: getMe
+      tags:
+        - users
+      summary: Get current user profile
+      parameters:
+        - name: telegram_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{userId}:
+    get:
+      operationId: getUser
+      tags:
+        - users
+      summary: Get user by ID
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users:
+    get:
+      operationId: listUsers
+      tags:
+        - users
+      summary: List all users (admin)
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Users list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserListResponse"
+
+  /wallet/balance:
+    get:
+      operationId: getWalletBalance
+      tags:
+        - wallet
+      summary: Get SKZ balance for a user
+      parameters:
+        - name: telegram_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Wallet balance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletBalance"
+
+  /wallet/deposit:
+    post:
+      operationId: depositWallet
+      tags:
+        - wallet
+      summary: Deposit SKZ via TON or USDT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DepositInput"
+      responses:
+        "200":
+          description: Transaction created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+
+  /wallet/transfer:
+    post:
+      operationId: transferSkz
+      tags:
+        - wallet
+      summary: Transfer SKZ between users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferInput"
+      responses:
+        "200":
+          description: Transfer complete
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+
+  /wallet/transactions:
+    get:
+      operationId: listTransactions
+      tags:
+        - wallet
+      summary: List transactions for a user
+      parameters:
+        - name: telegram_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Transactions list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionListResponse"
+
+  /wallet/stats:
+    get:
+      operationId: getWalletStats
+      tags:
+        - wallet
+      summary: Get global wallet stats for admin dashboard
+      responses:
+        "200":
+          description: Wallet stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletStats"
+
+  /referrals/my:
+    get:
+      operationId: getMyReferrals
+      tags:
+        - referrals
+      summary: Get referral tree for a user
+      parameters:
+        - name: telegram_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Referral info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReferralInfo"
+
+  /referrals/earnings:
+    get:
+      operationId: getReferralEarnings
+      tags:
+        - referrals
+      summary: Get total referral earnings for a user
+      parameters:
+        - name: telegram_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Referral earnings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReferralEarnings"
+
+  /referrals/leaderboard:
+    get:
+      operationId: getReferralLeaderboard
+      tags:
+        - referrals
+      summary: Top referrers leaderboard
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Leaderboard
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaderboardEntry"
+
+  /bots:
+    get:
+      operationId: listBots
+      tags:
+        - bots
+      summary: List all sub-bots
+      responses:
+        "200":
+          description: Bots list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Bot"
+
+  /bots/{botId}:
+    get:
+      operationId: getBot
+      tags:
+        - bots
+      summary: Get bot details
+      parameters:
+        - name: botId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Bot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bot"
+    patch:
+      operationId: updateBot
+      tags:
+        - bots
+      summary: Update bot settings (admin)
+      parameters:
+        - name: botId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BotUpdate"
+      responses:
+        "200":
+          description: Updated bot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bot"
+
+  /admin/dashboard:
+    get:
+      operationId: getAdminDashboard
+      tags:
+        - admin
+      summary: Get admin dashboard summary
+      responses:
+        "200":
+          description: Dashboard data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminDashboard"
+
+  /admin/users/{userId}/ban:
+    post:
+      operationId: banUser
+      tags:
+        - admin
+      summary: Ban or unban a user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BanInput"
+      responses:
+        "200":
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /admin/broadcast:
+    post:
+      operationId: sendBroadcast
+      tags:
+        - admin
+      summary: Send broadcast message to all users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BroadcastInput"
+      responses:
+        "200":
+          description: Broadcast queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BroadcastResult"
+
+  /admin/transactions:
+    get:
+      operationId: listAllTransactions
+      tags:
+        - admin
+      summary: List all transactions (admin)
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: All transactions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionListResponse"
+
+  /settings:
+    get:
+      operationId: getSettings
+      tags:
+        - settings
+      summary: Get system settings
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemSettings"
+    patch:
+      operationId: updateSettings
+      tags:
+        - settings
+      summary: Update system settings (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SettingsUpdate"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemSettings"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +480,527 @@ components:
       required:
         - status
 
+    User:
+      type: object
+      required:
+        - id
+        - telegramId
+        - skzBalance
+        - referralCode
+        - isAdmin
+        - isBanned
+        - totalEarned
+        - createdAt
+      properties:
+        id:
+          type: integer
+        telegramId:
+          type: string
+        username:
+          type:
+            - string
+            - "null"
+        firstName:
+          type:
+            - string
+            - "null"
+        lastName:
+          type:
+            - string
+            - "null"
+        photoUrl:
+          type:
+            - string
+            - "null"
+        skzBalance:
+          type: number
+        referralCode:
+          type: string
+        referredBy:
+          type:
+            - integer
+            - "null"
+        isAdmin:
+          type: boolean
+        isBanned:
+          type: boolean
+        totalEarned:
+          type: number
+        createdAt:
+          type: string
+
+    UserRegisterInput:
+      type: object
+      required:
+        - telegramId
+      properties:
+        telegramId:
+          type: string
+        username:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        photoUrl:
+          type: string
+        referralCode:
+          type: string
+
+    UserListResponse:
+      type: object
+      required:
+        - users
+        - total
+        - page
+        - limit
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    WalletBalance:
+      type: object
+      required:
+        - telegramId
+        - skzBalance
+        - pendingDeposits
+      properties:
+        telegramId:
+          type: string
+        skzBalance:
+          type: number
+        pendingDeposits:
+          type: number
+        totalDeposited:
+          type: number
+        totalWithdrawn:
+          type: number
+
+    DepositInput:
+      type: object
+      required:
+        - telegramId
+        - amount
+        - currency
+        - txHash
+      properties:
+        telegramId:
+          type: string
+        amount:
+          type: number
+        currency:
+          type: string
+          enum:
+            - TON
+            - USDT
+        txHash:
+          type: string
+        network:
+          type: string
+
+    TransferInput:
+      type: object
+      required:
+        - fromTelegramId
+        - toTelegramId
+        - amount
+      properties:
+        fromTelegramId:
+          type: string
+        toTelegramId:
+          type: string
+        amount:
+          type: number
+        note:
+          type: string
+
+    Transaction:
+      type: object
+      required:
+        - id
+        - userId
+        - type
+        - amount
+        - status
+        - createdAt
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        type:
+          type: string
+          enum:
+            - deposit
+            - withdraw
+            - transfer_in
+            - transfer_out
+            - commission
+            - refund
+        amount:
+          type: number
+        currency:
+          type:
+            - string
+            - "null"
+        txHash:
+          type:
+            - string
+            - "null"
+        status:
+          type: string
+          enum:
+            - pending
+            - confirmed
+            - failed
+        note:
+          type:
+            - string
+            - "null"
+        refUserId:
+          type:
+            - integer
+            - "null"
+        createdAt:
+          type: string
+
+    TransactionListResponse:
+      type: object
+      required:
+        - transactions
+        - total
+        - page
+        - limit
+      properties:
+        transactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Transaction"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    WalletStats:
+      type: object
+      required:
+        - totalSkzInCirculation
+        - totalDeposited
+        - totalTransactions
+        - activeWallets
+      properties:
+        totalSkzInCirculation:
+          type: number
+        totalDeposited:
+          type: number
+        totalTransactions:
+          type: integer
+        activeWallets:
+          type: integer
+        tonRate:
+          type: number
+        usdtRate:
+          type: number
+
+    ReferralInfo:
+      type: object
+      required:
+        - telegramId
+        - referralCode
+        - referralLink
+        - level1Count
+        - level2Count
+        - level3Count
+      properties:
+        telegramId:
+          type: string
+        referralCode:
+          type: string
+        referralLink:
+          type: string
+        level1Count:
+          type: integer
+        level2Count:
+          type: integer
+        level3Count:
+          type: integer
+        level1Rate:
+          type: number
+        level2Rate:
+          type: number
+        level3Rate:
+          type: number
+        referrees:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReferralNode"
+
+    ReferralNode:
+      type: object
+      required:
+        - id
+        - level
+        - joinedAt
+        - earned
+      properties:
+        id:
+          type: integer
+        username:
+          type:
+            - string
+            - "null"
+        firstName:
+          type:
+            - string
+            - "null"
+        level:
+          type: integer
+        joinedAt:
+          type: string
+        earned:
+          type: number
+
+    ReferralEarnings:
+      type: object
+      required:
+        - totalEarned
+        - level1Earned
+        - level2Earned
+        - level3Earned
+      properties:
+        totalEarned:
+          type: number
+        level1Earned:
+          type: number
+        level2Earned:
+          type: number
+        level3Earned:
+          type: number
+        thisMonth:
+          type: number
+
+    LeaderboardEntry:
+      type: object
+      required:
+        - rank
+        - userId
+        - referralCount
+        - totalEarned
+      properties:
+        rank:
+          type: integer
+        userId:
+          type: integer
+        username:
+          type:
+            - string
+            - "null"
+        firstName:
+          type:
+            - string
+            - "null"
+        referralCount:
+          type: integer
+        totalEarned:
+          type: number
+
+    Bot:
+      type: object
+      required:
+        - id
+        - name
+        - slug
+        - isActive
+        - userCount
+        - createdAt
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type:
+            - string
+            - "null"
+        isActive:
+          type: boolean
+        userCount:
+          type: integer
+        iconEmoji:
+          type:
+            - string
+            - "null"
+        createdAt:
+          type: string
+
+    BotUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        isActive:
+          type: boolean
+        iconEmoji:
+          type: string
+
+    AdminDashboard:
+      type: object
+      required:
+        - totalUsers
+        - activeUsers
+        - totalSkz
+        - totalTransactions
+        - newUsersToday
+        - revenueToday
+      properties:
+        totalUsers:
+          type: integer
+        activeUsers:
+          type: integer
+        bannedUsers:
+          type: integer
+        totalSkz:
+          type: number
+        totalTransactions:
+          type: integer
+        newUsersToday:
+          type: integer
+        revenueToday:
+          type: number
+        revenueThisMonth:
+          type: number
+        topReferrers:
+          type: array
+          items:
+            $ref: "#/components/schemas/LeaderboardEntry"
+        recentTransactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Transaction"
+
+    BanInput:
+      type: object
+      required:
+        - banned
+      properties:
+        banned:
+          type: boolean
+        reason:
+          type: string
+
+    BroadcastInput:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+        parseMode:
+          type: string
+          enum:
+            - HTML
+            - Markdown
+        targetGroup:
+          type: string
+          enum:
+            - all
+            - active
+            - referrers
+
+    BroadcastResult:
+      type: object
+      required:
+        - queued
+        - targetCount
+      properties:
+        queued:
+          type: boolean
+        targetCount:
+          type: integer
+        message:
+          type: string
+
+    SystemSettings:
+      type: object
+      required:
+        - id
+        - skzPerTon
+        - skzPerUsdt
+        - level1Rate
+        - level2Rate
+        - level3Rate
+        - minDeposit
+        - maintenanceMode
+      properties:
+        id:
+          type: integer
+        skzPerTon:
+          type: number
+        skzPerUsdt:
+          type: number
+        level1Rate:
+          type: number
+        level2Rate:
+          type: number
+        level3Rate:
+          type: number
+        minDeposit:
+          type: number
+        maxWithdraw:
+          type: number
+        maintenanceMode:
+          type: boolean
+        maintenanceMsg:
+          type:
+            - string
+            - "null"
+        botToken:
+          type:
+            - string
+            - "null"
+        welcomeMessage:
+          type:
+            - string
+            - "null"
+        updatedAt:
+          type: string
+
+    SettingsUpdate:
+      type: object
+      properties:
+        skzPerTon:
+          type: number
+        skzPerUsdt:
+          type: number
+        level1Rate:
+          type: number
+        level2Rate:
+          type: number
+        level3Rate:
+          type: number
+        minDeposit:
+          type: number
+        maxWithdraw:
+          type: number
+        maintenanceMode:
+          type: boolean
+        maintenanceMsg:
+          type: string
+        botToken:
+          type: string
+        welcomeMessage:
+          type: string
