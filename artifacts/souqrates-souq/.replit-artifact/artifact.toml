@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/souq/"
+title = "Souqrates Souq"
+version = "1.0.0"
+id = "artifacts/souqrates-souq"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/souq/" ]
+localPort = 24559
+
+[services.development]
+run = "pnpm --filter @workspace/souqrates-souq run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/souqrates-souq", "run", "build" ]
+publicDir = "artifacts/souqrates-souq/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24559"
+BASE_PATH = "/souq/"

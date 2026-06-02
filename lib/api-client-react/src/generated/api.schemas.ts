@@ -417,6 +417,115 @@ export interface GamesStats {
   topGame?: string | null;
 }
 
+export type SouqProductCategory = typeof SouqProductCategory[keyof typeof SouqProductCategory];
+
+
+export const SouqProductCategory = {
+  book: 'book',
+  template: 'template',
+  course: 'course',
+} as const;
+
+export interface SouqProduct {
+  id: number;
+  name: string;
+  slug: string;
+  category: SouqProductCategory;
+  description: string;
+  longDescription?: string;
+  author: string;
+  coverImageUrl?: string;
+  fileUrl?: string;
+  previewUrl?: string;
+  price: number;
+  isActive: boolean;
+  isFeatured: boolean;
+  totalSales: number;
+  rating: number;
+  tags?: string;
+  createdAt: string;
+}
+
+export type SouqProductInputCategory = typeof SouqProductInputCategory[keyof typeof SouqProductInputCategory];
+
+
+export const SouqProductInputCategory = {
+  book: 'book',
+  template: 'template',
+  course: 'course',
+} as const;
+
+export interface SouqProductInput {
+  name: string;
+  slug: string;
+  category: SouqProductInputCategory;
+  description: string;
+  longDescription?: string;
+  author: string;
+  coverImageUrl?: string;
+  fileUrl?: string;
+  previewUrl?: string;
+  price: number;
+  isActive?: boolean;
+  isFeatured?: boolean;
+  tags?: string;
+}
+
+export type SouqProductUpdateCategory = typeof SouqProductUpdateCategory[keyof typeof SouqProductUpdateCategory];
+
+
+export const SouqProductUpdateCategory = {
+  book: 'book',
+  template: 'template',
+  course: 'course',
+} as const;
+
+export interface SouqProductUpdate {
+  name?: string;
+  slug?: string;
+  category?: SouqProductUpdateCategory;
+  description?: string;
+  longDescription?: string;
+  author?: string;
+  coverImageUrl?: string;
+  fileUrl?: string;
+  previewUrl?: string;
+  price?: number;
+  isActive?: boolean;
+  isFeatured?: boolean;
+  tags?: string;
+}
+
+export interface SouqPurchaseInput {
+  telegramId: string;
+}
+
+export interface SouqPurchaseResult {
+  success: boolean;
+  purchaseId: number;
+  productId: number;
+  pricePaid: number;
+  newBalance: number;
+  fileUrl?: string;
+}
+
+export interface SouqLibraryItem {
+  purchaseId: number;
+  pricePaid?: number;
+  purchasedAt: string;
+  product: SouqProduct;
+}
+
+export interface SouqStats {
+  totalProducts: number;
+  totalPurchases: number;
+  totalRevenue: number;
+  activeProducts: number;
+  featuredProducts?: number;
+  /** @nullable */
+  topProduct?: string | null;
+}
+
 export type GetMeParams = {
 telegram_id: string;
 };
@@ -470,5 +579,20 @@ limit?: number;
 export type FetchLeaderboardParams = {
 game_id: number;
 limit?: number;
+};
+
+export type ListSouqProductsParams = {
+category?: string;
+isActive?: boolean;
+search?: string;
+featured?: boolean;
+};
+
+export type DeleteSouqProduct200 = {
+  success?: boolean;
+};
+
+export type GetMySouqLibraryParams = {
+telegram_id: string;
 };
 

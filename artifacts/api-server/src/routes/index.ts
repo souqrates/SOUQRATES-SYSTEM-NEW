@@ -7,6 +7,7 @@ import botsRouter from "./bots";
 import adminRouter from "./admin";
 import settingsRouter from "./settings";
 import gamesRouter from "./games";
+import souqRouter from "./souq";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use("/bots", botsRouter);
 router.use("/admin", adminRouter);
 router.use("/settings", settingsRouter);
 router.use("/games", gamesRouter);
+router.use("/souq", souqRouter);
 
 export default router;

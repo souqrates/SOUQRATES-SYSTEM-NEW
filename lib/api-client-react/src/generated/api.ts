@@ -26,6 +26,7 @@ import type {
   BotUpdate,
   BroadcastInput,
   BroadcastResult,
+  DeleteSouqProduct200,
   DepositInput,
   EndSessionInput,
   FetchLeaderboardParams,
@@ -37,6 +38,7 @@ import type {
   GamesStats,
   GetMeParams,
   GetMyReferralsParams,
+  GetMySouqLibraryParams,
   GetReferralEarningsParams,
   GetReferralLeaderboardParams,
   GetSessionHistoryParams,
@@ -45,6 +47,7 @@ import type {
   LeaderboardEntry,
   ListAllTransactionsParams,
   ListGamesParams,
+  ListSouqProductsParams,
   ListTransactionsParams,
   ListUsersParams,
   ReferralEarnings,
@@ -53,6 +56,13 @@ import type {
   SettingsUpdate,
   SkillzGame,
   SkillzGameDetail,
+  SouqLibraryItem,
+  SouqProduct,
+  SouqProductInput,
+  SouqProductUpdate,
+  SouqPurchaseInput,
+  SouqPurchaseResult,
+  SouqStats,
   StartSessionInput,
   SystemSettings,
   TicketUpdate,
@@ -2332,6 +2342,613 @@ export const useUpdateGameTicket = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getUpdateGameTicketMutationOptions(options));
     }
+
+export const getListSouqProductsUrl = (params?: ListSouqProductsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/souq/products?${stringifiedParams}` : `/api/souq/products`
+}
+
+/**
+ * @summary List all Souq products
+ */
+export const listSouqProducts = async (params?: ListSouqProductsParams, options?: RequestInit): Promise<SouqProduct[]> => {
+
+  return customFetch<SouqProduct[]>(getListSouqProductsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSouqProductsQueryKey = (params?: ListSouqProductsParams,) => {
+    return [
+    `/api/souq/products`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListSouqProductsQueryOptions = <TData = Awaited<ReturnType<typeof listSouqProducts>>, TError = ErrorType<unknown>>(params?: ListSouqProductsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSouqProducts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSouqProductsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSouqProducts>>> = ({ signal }) => listSouqProducts(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSouqProducts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListSouqProductsQueryResult = NonNullable<Awaited<ReturnType<typeof listSouqProducts>>>
+export type ListSouqProductsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all Souq products
+ */
+
+export function useListSouqProducts<TData = Awaited<ReturnType<typeof listSouqProducts>>, TError = ErrorType<unknown>>(
+ params?: ListSouqProductsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listSouqProducts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListSouqProductsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getCreateSouqProductUrl = () => {
+
+
+
+
+  return `/api/souq/products`
+}
+
+/**
+ * @summary Create a new product (admin)
+ */
+export const createSouqProduct = async (souqProductInput: SouqProductInput, options?: RequestInit): Promise<SouqProduct> => {
+
+  return customFetch<SouqProduct>(getCreateSouqProductUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      souqProductInput,)
+  }
+);}
+
+
+
+
+export const getCreateSouqProductMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSouqProduct>>, TError,{data: BodyType<SouqProductInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createSouqProduct>>, TError,{data: BodyType<SouqProductInput>}, TContext> => {
+
+const mutationKey = ['createSouqProduct'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createSouqProduct>>, {data: BodyType<SouqProductInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createSouqProduct(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateSouqProductMutationResult = NonNullable<Awaited<ReturnType<typeof createSouqProduct>>>
+    export type CreateSouqProductMutationBody = BodyType<SouqProductInput>
+    export type CreateSouqProductMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a new product (admin)
+ */
+export const useCreateSouqProduct = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createSouqProduct>>, TError,{data: BodyType<SouqProductInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createSouqProduct>>,
+        TError,
+        {data: BodyType<SouqProductInput>},
+        TContext
+      > => {
+      return useMutation(getCreateSouqProductMutationOptions(options));
+    }
+
+export const getGetSouqProductUrl = (productId: number,) => {
+
+
+
+
+  return `/api/souq/products/${productId}`
+}
+
+/**
+ * @summary Get product by ID
+ */
+export const getSouqProduct = async (productId: number, options?: RequestInit): Promise<SouqProduct> => {
+
+  return customFetch<SouqProduct>(getGetSouqProductUrl(productId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSouqProductQueryKey = (productId: number,) => {
+    return [
+    `/api/souq/products/${productId}`
+    ] as const;
+    }
+
+
+export const getGetSouqProductQueryOptions = <TData = Awaited<ReturnType<typeof getSouqProduct>>, TError = ErrorType<unknown>>(productId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSouqProduct>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSouqProductQueryKey(productId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSouqProduct>>> = ({ signal }) => getSouqProduct(productId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: !!(productId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSouqProduct>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSouqProductQueryResult = NonNullable<Awaited<ReturnType<typeof getSouqProduct>>>
+export type GetSouqProductQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get product by ID
+ */
+
+export function useGetSouqProduct<TData = Awaited<ReturnType<typeof getSouqProduct>>, TError = ErrorType<unknown>>(
+ productId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSouqProduct>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSouqProductQueryOptions(productId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getUpdateSouqProductUrl = (productId: number,) => {
+
+
+
+
+  return `/api/souq/products/${productId}`
+}
+
+/**
+ * @summary Update a product (admin)
+ */
+export const updateSouqProduct = async (productId: number,
+    souqProductUpdate: SouqProductUpdate, options?: RequestInit): Promise<SouqProduct> => {
+
+  return customFetch<SouqProduct>(getUpdateSouqProductUrl(productId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      souqProductUpdate,)
+  }
+);}
+
+
+
+
+export const getUpdateSouqProductMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSouqProduct>>, TError,{productId: number;data: BodyType<SouqProductUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateSouqProduct>>, TError,{productId: number;data: BodyType<SouqProductUpdate>}, TContext> => {
+
+const mutationKey = ['updateSouqProduct'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateSouqProduct>>, {productId: number;data: BodyType<SouqProductUpdate>}> = (props) => {
+          const {productId,data} = props ?? {};
+
+          return  updateSouqProduct(productId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateSouqProductMutationResult = NonNullable<Awaited<ReturnType<typeof updateSouqProduct>>>
+    export type UpdateSouqProductMutationBody = BodyType<SouqProductUpdate>
+    export type UpdateSouqProductMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Update a product (admin)
+ */
+export const useUpdateSouqProduct = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateSouqProduct>>, TError,{productId: number;data: BodyType<SouqProductUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateSouqProduct>>,
+        TError,
+        {productId: number;data: BodyType<SouqProductUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateSouqProductMutationOptions(options));
+    }
+
+export const getDeleteSouqProductUrl = (productId: number,) => {
+
+
+
+
+  return `/api/souq/products/${productId}`
+}
+
+/**
+ * @summary Delete a product (admin)
+ */
+export const deleteSouqProduct = async (productId: number, options?: RequestInit): Promise<DeleteSouqProduct200> => {
+
+  return customFetch<DeleteSouqProduct200>(getDeleteSouqProductUrl(productId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteSouqProductMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteSouqProduct>>, TError,{productId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteSouqProduct>>, TError,{productId: number}, TContext> => {
+
+const mutationKey = ['deleteSouqProduct'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteSouqProduct>>, {productId: number}> = (props) => {
+          const {productId} = props ?? {};
+
+          return  deleteSouqProduct(productId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteSouqProductMutationResult = NonNullable<Awaited<ReturnType<typeof deleteSouqProduct>>>
+
+    export type DeleteSouqProductMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Delete a product (admin)
+ */
+export const useDeleteSouqProduct = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteSouqProduct>>, TError,{productId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteSouqProduct>>,
+        TError,
+        {productId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteSouqProductMutationOptions(options));
+    }
+
+export const getPurchaseSouqProductUrl = (productId: number,) => {
+
+
+
+
+  return `/api/souq/purchase/${productId}`
+}
+
+/**
+ * @summary Purchase a product with SKZ
+ */
+export const purchaseSouqProduct = async (productId: number,
+    souqPurchaseInput: SouqPurchaseInput, options?: RequestInit): Promise<SouqPurchaseResult> => {
+
+  return customFetch<SouqPurchaseResult>(getPurchaseSouqProductUrl(productId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      souqPurchaseInput,)
+  }
+);}
+
+
+
+
+export const getPurchaseSouqProductMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof purchaseSouqProduct>>, TError,{productId: number;data: BodyType<SouqPurchaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof purchaseSouqProduct>>, TError,{productId: number;data: BodyType<SouqPurchaseInput>}, TContext> => {
+
+const mutationKey = ['purchaseSouqProduct'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof purchaseSouqProduct>>, {productId: number;data: BodyType<SouqPurchaseInput>}> = (props) => {
+          const {productId,data} = props ?? {};
+
+          return  purchaseSouqProduct(productId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PurchaseSouqProductMutationResult = NonNullable<Awaited<ReturnType<typeof purchaseSouqProduct>>>
+    export type PurchaseSouqProductMutationBody = BodyType<SouqPurchaseInput>
+    export type PurchaseSouqProductMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Purchase a product with SKZ
+ */
+export const usePurchaseSouqProduct = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof purchaseSouqProduct>>, TError,{productId: number;data: BodyType<SouqPurchaseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof purchaseSouqProduct>>,
+        TError,
+        {productId: number;data: BodyType<SouqPurchaseInput>},
+        TContext
+      > => {
+      return useMutation(getPurchaseSouqProductMutationOptions(options));
+    }
+
+export const getGetMySouqLibraryUrl = (params: GetMySouqLibraryParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/souq/my-library?${stringifiedParams}` : `/api/souq/my-library`
+}
+
+/**
+ * @summary Get user's purchased products
+ */
+export const getMySouqLibrary = async (params: GetMySouqLibraryParams, options?: RequestInit): Promise<SouqLibraryItem[]> => {
+
+  return customFetch<SouqLibraryItem[]>(getGetMySouqLibraryUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMySouqLibraryQueryKey = (params?: GetMySouqLibraryParams,) => {
+    return [
+    `/api/souq/my-library`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetMySouqLibraryQueryOptions = <TData = Awaited<ReturnType<typeof getMySouqLibrary>>, TError = ErrorType<unknown>>(params: GetMySouqLibraryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMySouqLibrary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMySouqLibraryQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMySouqLibrary>>> = ({ signal }) => getMySouqLibrary(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMySouqLibrary>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMySouqLibraryQueryResult = NonNullable<Awaited<ReturnType<typeof getMySouqLibrary>>>
+export type GetMySouqLibraryQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get user's purchased products
+ */
+
+export function useGetMySouqLibrary<TData = Awaited<ReturnType<typeof getMySouqLibrary>>, TError = ErrorType<unknown>>(
+ params: GetMySouqLibraryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMySouqLibrary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMySouqLibraryQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetSouqStatsUrl = () => {
+
+
+
+
+  return `/api/souq/stats`
+}
+
+/**
+ * @summary Souq marketplace stats (admin)
+ */
+export const getSouqStats = async ( options?: RequestInit): Promise<SouqStats> => {
+
+  return customFetch<SouqStats>(getGetSouqStatsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSouqStatsQueryKey = () => {
+    return [
+    `/api/souq/stats`
+    ] as const;
+    }
+
+
+export const getGetSouqStatsQueryOptions = <TData = Awaited<ReturnType<typeof getSouqStats>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSouqStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSouqStatsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSouqStats>>> = ({ signal }) => getSouqStats({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSouqStats>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSouqStatsQueryResult = NonNullable<Awaited<ReturnType<typeof getSouqStats>>>
+export type GetSouqStatsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Souq marketplace stats (admin)
+ */
+
+export function useGetSouqStats<TData = Awaited<ReturnType<typeof getSouqStats>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSouqStats>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSouqStatsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
 
 export const getGetSettingsUrl = () => {
 

@@ -49,6 +49,7 @@ function Router() {
         <Route path="/manager/users" component={ManagerLayout} />
         <Route path="/manager/transactions" component={ManagerLayout} />
         <Route path="/manager/games" component={ManagerLayout} />
+        <Route path="/manager/souq" component={ManagerLayout} />
         <Route path="/manager/settings" component={ManagerLayout} />
         <Route component={NotFound} />
       </Switch>

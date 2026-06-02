@@ -23,6 +23,8 @@ tags:
     description: System settings
   - name: games
     description: Skillz games catalog and sessions
+  - name: souq
+    description: Souqrates Souq digital marketplace
 
 paths:
   /healthz:
@@ -650,6 +652,184 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/GameTicket"
+
+  /souq/products:
+    get:
+      operationId: listSouqProducts
+      tags:
+        - souq
+      summary: List all Souq products
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: featured
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Products list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SouqProduct"
+    post:
+      operationId: createSouqProduct
+      tags:
+        - souq
+      summary: Create a new product (admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SouqProductInput"
+      responses:
+        "201":
+          description: Product created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SouqProduct"
+
+  /souq/products/{productId}:
+    get:
+      operationId: getSouqProduct
+      tags:
+        - souq
+      summary: Get product by ID
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SouqProduct"
+    patch:
+      operationId: updateSouqProduct
+      tags:
+        - souq
+      summary: Update a product (admin)
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SouqProductUpdate"
+      responses:
+        "200":
+          description: Updated product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SouqProduct"
+    delete:
+      operationId: deleteSouqProduct
+      tags:
+        - souq
+      summary: Delete a product (admin)
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
+  /souq/purchase/{productId}:
+    post:
+      operationId: purchaseSouqProduct
+      tags:
+        - souq
+      summary: Purchase a product with SKZ
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SouqPurchaseInput"
+      responses:
+        "200":
+          description: Purchase successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SouqPurchaseResult"
+
+  /souq/my-library:
+    get:
+      operationId: getMySouqLibrary
+      tags:
+        - souq
+      summary: Get user's purchased products
+      parameters:
+        - name: telegram_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User library
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SouqLibraryItem"
+
+  /souq/stats:
+    get:
+      operationId: getSouqStats
+      tags:
+        - souq
+      summary: Souq marketplace stats (admin)
+      responses:
+        "200":
+          description: Stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SouqStats"
 
   /settings:
     get:
@@ -1543,6 +1723,205 @@ components:
         activeGames:
           type: integer
         topGame:
+          type:
+            - string
+            - "null"
+
+    SouqProduct:
+      type: object
+      required:
+        - id
+        - name
+        - slug
+        - category
+        - description
+        - price
+        - author
+        - isActive
+        - isFeatured
+        - totalSales
+        - rating
+        - createdAt
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+        category:
+          type: string
+          enum:
+            - book
+            - template
+            - course
+        description:
+          type: string
+        longDescription:
+          type: string
+        author:
+          type: string
+        coverImageUrl:
+          type: string
+        fileUrl:
+          type: string
+        previewUrl:
+          type: string
+        price:
+          type: number
+        isActive:
+          type: boolean
+        isFeatured:
+          type: boolean
+        totalSales:
+          type: integer
+        rating:
+          type: number
+        tags:
+          type: string
+        createdAt:
+          type: string
+
+    SouqProductInput:
+      type: object
+      required:
+        - name
+        - slug
+        - category
+        - description
+        - price
+        - author
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        category:
+          type: string
+          enum:
+            - book
+            - template
+            - course
+        description:
+          type: string
+        longDescription:
+          type: string
+        author:
+          type: string
+        coverImageUrl:
+          type: string
+        fileUrl:
+          type: string
+        previewUrl:
+          type: string
+        price:
+          type: number
+        isActive:
+          type: boolean
+        isFeatured:
+          type: boolean
+        tags:
+          type: string
+
+    SouqProductUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        category:
+          type: string
+          enum:
+            - book
+            - template
+            - course
+        description:
+          type: string
+        longDescription:
+          type: string
+        author:
+          type: string
+        coverImageUrl:
+          type: string
+        fileUrl:
+          type: string
+        previewUrl:
+          type: string
+        price:
+          type: number
+        isActive:
+          type: boolean
+        isFeatured:
+          type: boolean
+        tags:
+          type: string
+
+    SouqPurchaseInput:
+      type: object
+      required:
+        - telegramId
+      properties:
+        telegramId:
+          type: string
+
+    SouqPurchaseResult:
+      type: object
+      required:
+        - success
+        - purchaseId
+        - productId
+        - pricePaid
+        - newBalance
+      properties:
+        success:
+          type: boolean
+        purchaseId:
+          type: integer
+        productId:
+          type: integer
+        pricePaid:
+          type: number
+        newBalance:
+          type: number
+        fileUrl:
+          type: string
+
+    SouqLibraryItem:
+      type: object
+      required:
+        - purchaseId
+        - purchasedAt
+        - product
+      properties:
+        purchaseId:
+          type: integer
+        pricePaid:
+          type: number
+        purchasedAt:
+          type: string
+        product:
+          $ref: "#/components/schemas/SouqProduct"
+
+    SouqStats:
+      type: object
+      required:
+        - totalProducts
+        - totalPurchases
+        - totalRevenue
+        - activeProducts
+      properties:
+        totalProducts:
+          type: integer
+        totalPurchases:
+          type: integer
+        totalRevenue:
+          type: number
+        activeProducts:
+          type: integer
+        featuredProducts:
+          type: integer
+        topProduct:
           type:
             - string
             - "null"

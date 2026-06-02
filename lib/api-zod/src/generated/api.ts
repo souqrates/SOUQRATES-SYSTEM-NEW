@@ -700,6 +700,210 @@ export const UpdateGameTicketResponse = zod.array(UpdateGameTicketResponseItem)
 
 
 /**
+ * @summary List all Souq products
+ */
+export const ListSouqProductsQueryParams = zod.object({
+  "category": zod.coerce.string().optional(),
+  "isActive": zod.coerce.boolean().optional(),
+  "search": zod.coerce.string().optional(),
+  "featured": zod.coerce.boolean().optional()
+})
+
+export const ListSouqProductsResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "category": zod.enum(['book', 'template', 'course']),
+  "description": zod.string(),
+  "longDescription": zod.string().optional(),
+  "author": zod.string(),
+  "coverImageUrl": zod.string().optional(),
+  "fileUrl": zod.string().optional(),
+  "previewUrl": zod.string().optional(),
+  "price": zod.number(),
+  "isActive": zod.boolean(),
+  "isFeatured": zod.boolean(),
+  "totalSales": zod.number(),
+  "rating": zod.number(),
+  "tags": zod.string().optional(),
+  "createdAt": zod.string()
+})
+export const ListSouqProductsResponse = zod.array(ListSouqProductsResponseItem)
+
+
+/**
+ * @summary Create a new product (admin)
+ */
+export const CreateSouqProductBody = zod.object({
+  "name": zod.string(),
+  "slug": zod.string(),
+  "category": zod.enum(['book', 'template', 'course']),
+  "description": zod.string(),
+  "longDescription": zod.string().optional(),
+  "author": zod.string(),
+  "coverImageUrl": zod.string().optional(),
+  "fileUrl": zod.string().optional(),
+  "previewUrl": zod.string().optional(),
+  "price": zod.number(),
+  "isActive": zod.boolean().optional(),
+  "isFeatured": zod.boolean().optional(),
+  "tags": zod.string().optional()
+})
+
+
+/**
+ * @summary Get product by ID
+ */
+export const GetSouqProductParams = zod.object({
+  "productId": zod.coerce.number()
+})
+
+export const GetSouqProductResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "category": zod.enum(['book', 'template', 'course']),
+  "description": zod.string(),
+  "longDescription": zod.string().optional(),
+  "author": zod.string(),
+  "coverImageUrl": zod.string().optional(),
+  "fileUrl": zod.string().optional(),
+  "previewUrl": zod.string().optional(),
+  "price": zod.number(),
+  "isActive": zod.boolean(),
+  "isFeatured": zod.boolean(),
+  "totalSales": zod.number(),
+  "rating": zod.number(),
+  "tags": zod.string().optional(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Update a product (admin)
+ */
+export const UpdateSouqProductParams = zod.object({
+  "productId": zod.coerce.number()
+})
+
+export const UpdateSouqProductBody = zod.object({
+  "name": zod.string().optional(),
+  "slug": zod.string().optional(),
+  "category": zod.enum(['book', 'template', 'course']).optional(),
+  "description": zod.string().optional(),
+  "longDescription": zod.string().optional(),
+  "author": zod.string().optional(),
+  "coverImageUrl": zod.string().optional(),
+  "fileUrl": zod.string().optional(),
+  "previewUrl": zod.string().optional(),
+  "price": zod.number().optional(),
+  "isActive": zod.boolean().optional(),
+  "isFeatured": zod.boolean().optional(),
+  "tags": zod.string().optional()
+})
+
+export const UpdateSouqProductResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "category": zod.enum(['book', 'template', 'course']),
+  "description": zod.string(),
+  "longDescription": zod.string().optional(),
+  "author": zod.string(),
+  "coverImageUrl": zod.string().optional(),
+  "fileUrl": zod.string().optional(),
+  "previewUrl": zod.string().optional(),
+  "price": zod.number(),
+  "isActive": zod.boolean(),
+  "isFeatured": zod.boolean(),
+  "totalSales": zod.number(),
+  "rating": zod.number(),
+  "tags": zod.string().optional(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a product (admin)
+ */
+export const DeleteSouqProductParams = zod.object({
+  "productId": zod.coerce.number()
+})
+
+export const DeleteSouqProductResponse = zod.object({
+  "success": zod.boolean().optional()
+})
+
+
+/**
+ * @summary Purchase a product with SKZ
+ */
+export const PurchaseSouqProductParams = zod.object({
+  "productId": zod.coerce.number()
+})
+
+export const PurchaseSouqProductBody = zod.object({
+  "telegramId": zod.string()
+})
+
+export const PurchaseSouqProductResponse = zod.object({
+  "success": zod.boolean(),
+  "purchaseId": zod.number(),
+  "productId": zod.number(),
+  "pricePaid": zod.number(),
+  "newBalance": zod.number(),
+  "fileUrl": zod.string().optional()
+})
+
+
+/**
+ * @summary Get user's purchased products
+ */
+export const GetMySouqLibraryQueryParams = zod.object({
+  "telegram_id": zod.coerce.string()
+})
+
+export const GetMySouqLibraryResponseItem = zod.object({
+  "purchaseId": zod.number(),
+  "pricePaid": zod.number().optional(),
+  "purchasedAt": zod.string(),
+  "product": zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "category": zod.enum(['book', 'template', 'course']),
+  "description": zod.string(),
+  "longDescription": zod.string().optional(),
+  "author": zod.string(),
+  "coverImageUrl": zod.string().optional(),
+  "fileUrl": zod.string().optional(),
+  "previewUrl": zod.string().optional(),
+  "price": zod.number(),
+  "isActive": zod.boolean(),
+  "isFeatured": zod.boolean(),
+  "totalSales": zod.number(),
+  "rating": zod.number(),
+  "tags": zod.string().optional(),
+  "createdAt": zod.string()
+})
+})
+export const GetMySouqLibraryResponse = zod.array(GetMySouqLibraryResponseItem)
+
+
+/**
+ * @summary Souq marketplace stats (admin)
+ */
+export const GetSouqStatsResponse = zod.object({
+  "totalProducts": zod.number(),
+  "totalPurchases": zod.number(),
+  "totalRevenue": zod.number(),
+  "activeProducts": zod.number(),
+  "featuredProducts": zod.number().optional(),
+  "topProduct": zod.string().nullish()
+})
+
+
+/**
  * @summary Get system settings
  */
 export const GetSettingsResponse = zod.object({
