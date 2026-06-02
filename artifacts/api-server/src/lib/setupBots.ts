@@ -2,7 +2,17 @@ import { logger } from "./logger";
 
 interface TelegramResponse {
   ok: boolean;
+  result?: unknown;
   description?: string;
+}
+
+interface TelegramUpdate {
+  update_id: number;
+  message?: {
+    message_id: number;
+    chat: { id: number };
+    text?: string;
+  };
 }
 
 async function tgCall(token: string, method: string, body: object): Promise<TelegramResponse> {
@@ -14,9 +24,16 @@ async function tgCall(token: string, method: string, body: object): Promise<Tele
   return res.json() as Promise<TelegramResponse>;
 }
 
-async function configureBot(name: string, token: string, appUrl: string, buttonText: string, commands: Array<{ command: string; description: string }>) {
+async function configureBot(
+  name: string,
+  token: string,
+  appUrl: string,
+  buttonText: string,
+  commands: Array<{ command: string; description: string }>
+) {
   logger.info({ name }, "Configuring Telegram bot...");
 
+  // Menu button (shown in the chat input row)
   const menuResult = await tgCall(token, "setChatMenuButton", {
     menu_button: {
       type: "web_app",
@@ -30,6 +47,7 @@ async function configureBot(name: string, token: string, appUrl: string, buttonT
     logger.info({ name }, "Menu button set to Web App");
   }
 
+  // Commands list
   const cmdResult = await tgCall(token, "setMyCommands", { commands });
   if (!cmdResult.ok) {
     logger.error({ name, error: cmdResult.description }, "Failed to set commands");
@@ -37,17 +55,66 @@ async function configureBot(name: string, token: string, appUrl: string, buttonT
     logger.info({ name }, "Commands set");
   }
 
-  const shortDescResult = await tgCall(token, "setMyShortDescription", {
-    short_description: buttonText,
+  // Short description
+  await tgCall(token, "setMyShortDescription", { short_description: buttonText });
+}
+
+// Send /start welcome message with an inline Web App button
+async function sendWelcome(token: string, chatId: number, appUrl: string, buttonText: string) {
+  await tgCall(token, "sendMessage", {
+    chat_id: chatId,
+    text: "مرحباً — اضغط الزر أدناه لفتح التطبيق داخل تيليغرام:",
+    reply_markup: {
+      inline_keyboard: [[
+        { text: buttonText, web_app: { url: appUrl } },
+      ]],
+    },
   });
-  if (!shortDescResult.ok) {
-    logger.warn({ name, error: shortDescResult.description }, "Failed to set short description");
+}
+
+// Long-poll loop — runs forever in the background
+async function startPolling(name: string, token: string, appUrl: string, buttonText: string) {
+  let offset = 0;
+
+  // Delete any pending webhook so polling works
+  await tgCall(token, "deleteWebhook", { drop_pending_updates: false });
+
+  logger.info({ name }, "Bot polling started");
+
+  while (true) {
+    try {
+      const res = await fetch(
+        `https://api.telegram.org/bot${token}/getUpdates?timeout=25&offset=${offset}&allowed_updates=["message"]`,
+        { signal: AbortSignal.timeout(35_000) }
+      );
+      const data = (await res.json()) as { ok: boolean; result: TelegramUpdate[] };
+
+      if (!data.ok || !data.result?.length) continue;
+
+      for (const update of data.result) {
+        offset = update.update_id + 1;
+        const text = update.message?.text ?? "";
+        const chatId = update.message?.chat.id;
+        if (!chatId) continue;
+
+        if (text.startsWith("/start") || text.startsWith("/wallet") || text.startsWith("/games") || text.startsWith("/products")) {
+          await sendWelcome(token, chatId, appUrl, buttonText);
+        }
+      }
+    } catch (err: unknown) {
+      // Timeout or network blip — just retry
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!msg.includes("TimeoutError") && !msg.includes("AbortError")) {
+        logger.warn({ name, msg }, "Polling error — retrying");
+      }
+      await new Promise((r) => setTimeout(r, 3_000));
+    }
   }
 }
 
 export async function setupTelegramBots(): Promise<void> {
   const skillzToken = process.env["SKILLZ_BOT_TOKEN"];
-  const souqToken = process.env["SOUQ_BOT_TOKEN"];
+  const souqToken   = process.env["SOUQ_BOT_TOKEN"];
 
   if (!skillzToken && !souqToken) {
     logger.info("No bot tokens configured — skipping Telegram bot setup");
@@ -67,6 +134,10 @@ export async function setupTelegramBots(): Promise<void> {
           { command: "wallet", description: "My SKZ balance" },
         ],
       );
+      // Start polling in background (don't await)
+      startPolling("Skillz", skillzToken, "https://souqrates.com/skillz/", "Play & Win SKZ").catch(
+        (err) => logger.error({ err }, "Skillz polling crashed")
+      );
     }
 
     if (souqToken) {
@@ -80,6 +151,9 @@ export async function setupTelegramBots(): Promise<void> {
           { command: "products", description: "Browse products" },
           { command: "wallet",   description: "My SKZ balance" },
         ],
+      );
+      startPolling("Souq", souqToken, "https://souqrates.com/souq/", "Open Souq").catch(
+        (err) => logger.error({ err }, "Souq polling crashed")
       );
     }
 
