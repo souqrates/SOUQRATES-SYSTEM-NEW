@@ -1,6 +1,6 @@
 import { Switch, Route, useLocation } from "wouter";
 import { Link } from "wouter";
-import { ShieldCheck, LayoutDashboard, Users, Activity, Settings, Gamepad2, ShoppingBag, Shield } from "lucide-react";
+import { ShieldCheck, LayoutDashboard, Users, Activity, Settings, Gamepad2, ShoppingBag, Shield, Server } from "lucide-react";
 import Dashboard from "./dashboard";
 import UsersPanel from "./users";
 import Transactions from "./transactions";
@@ -8,6 +8,7 @@ import SystemSettings from "./settings";
 import GamesAdmin from "./games";
 import SouqAdmin from "./souq";
 import SubagentsAdmin from "./subagents";
+import InfrastructurePage from "./infrastructure";
 
 export default function ManagerLayout() {
   const [location] = useLocation();
@@ -20,6 +21,7 @@ export default function ManagerLayout() {
     { href: "/manager/souq", label: "Souq", icon: ShoppingBag },
     { href: "/manager/subagents", label: "Subagents", icon: Shield },
     { href: "/manager/settings", label: "Settings", icon: Settings },
+    { href: "/manager/infrastructure", label: "Infrastructure", icon: Server },
   ];
 
   return (
@@ -54,6 +56,7 @@ export default function ManagerLayout() {
           <Route path="/manager/souq" component={SouqAdmin} />
           <Route path="/manager/subagents" component={SubagentsAdmin} />
           <Route path="/manager/settings" component={SystemSettings} />
+          <Route path="/manager/infrastructure" component={InfrastructurePage} />
         </Switch>
       </div>
     </div>

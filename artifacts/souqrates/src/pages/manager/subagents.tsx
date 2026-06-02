@@ -50,7 +50,7 @@ function ApplicationCard({ app }: { app: Application }) {
   });
 
   function review(status: "approved" | "rejected") {
-    reviewMutation.mutate({ id: app.id, data: { status, reviewNote } } as Parameters<typeof reviewMutation.mutate>[0]);
+    reviewMutation.mutate({ applicationId: app.id, data: { status, reviewNote } } as Parameters<typeof reviewMutation.mutate>[0]);
   }
 
   return (

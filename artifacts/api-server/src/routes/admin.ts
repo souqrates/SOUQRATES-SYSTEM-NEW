@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { usersTable, transactionsTable, subagentApplicationsTable } from "@workspace/db";
+import { usersTable, transactionsTable, subagentApplicationsTable, settingsTable } from "@workspace/db";
 import { eq, sql, desc, and } from "drizzle-orm";
 import { BanUserBody, SendBroadcastBody, ListAllTransactionsQueryParams } from "@workspace/api-zod";
+import { testSentry } from "../lib/monitoring";
+import { testRedis, testQStash } from "../lib/cache";
 
 const router = Router();
 
@@ -244,6 +246,99 @@ router.get("/subagent-applications", async (req, res) => {
   } catch (err) {
     req.log.error({ err }, "Error listing subagent applications");
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── Infrastructure routes ─────────────────────────────────────────────────
+
+function maskToken(t: string | null | undefined): string {
+  if (!t) return "";
+  if (t.length <= 8) return "****";
+  return t.slice(0, 4) + "****" + t.slice(-4);
+}
+
+// GET /api/admin/infrastructure
+router.get("/infrastructure", async (req, res) => {
+  try {
+    const rows = await db.select().from(settingsTable).limit(1);
+    const s = rows[0];
+    if (!s) { res.json({}); return; }
+    res.json({
+      sentryDsn:           s.sentryDsn || "",
+      upstashRedisUrl:     s.upstashRedisUrl || "",
+      upstashRedisToken:   maskToken(s.upstashRedisToken),
+      upstashQstashUrl:    s.upstashQstashUrl || "",
+      upstashQstashToken:  maskToken(s.upstashQstashToken),
+      contaboWebhookUrl:   s.contaboWebhookUrl || "",
+    });
+  } catch (err) {
+    req.log.error({ err }, "Error fetching infra settings");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /api/admin/infrastructure — save one service's config
+router.post("/infrastructure", async (req, res) => {
+  const { service, url, token } = req.body as { service: string; url: string; token?: string };
+  const fieldMap: Record<string, { urlField: keyof typeof settingsTable.$inferInsert; tokenField?: keyof typeof settingsTable.$inferInsert }> = {
+    sentry:          { urlField: "sentryDsn" },
+    upstash_redis:   { urlField: "upstashRedisUrl",  tokenField: "upstashRedisToken"  },
+    upstash_qstash:  { urlField: "upstashQstashUrl", tokenField: "upstashQstashToken" },
+    contabo_webhook: { urlField: "contaboWebhookUrl" },
+  };
+  const fields = fieldMap[service];
+  if (!fields) { res.status(400).json({ error: "Unknown service" }); return; }
+
+  try {
+    const update = { [fields.urlField]: url || null } as Partial<typeof settingsTable.$inferInsert>;
+    if (fields.tokenField) (update as Record<string, unknown>)[fields.tokenField] = token || null;
+
+    const rows = await db.select().from(settingsTable).limit(1);
+    if (rows.length === 0) {
+      await db.insert(settingsTable).values(update as typeof settingsTable.$inferInsert);
+    } else {
+      await db.update(settingsTable).set(update).where(eq(settingsTable.id, rows[0].id));
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    req.log.error({ err }, "Error saving infra settings");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /api/admin/infrastructure/test — live connection test
+router.post("/infrastructure/test", async (req, res) => {
+  const { service, url, token } = req.body as { service: string; url: string; token?: string };
+  try {
+    if (service === "sentry") {
+      res.json(await testSentry(url));
+    } else if (service === "upstash_redis") {
+      if (!token) { res.json({ ok: false, message: "Token required" }); return; }
+      res.json(await testRedis(url, token));
+    } else if (service === "upstash_qstash") {
+      if (!token) { res.json({ ok: false, message: "Token required" }); return; }
+      res.json(await testQStash(url, token));
+    } else if (service === "contabo_webhook") {
+      // Test server reachability via health endpoint
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        const r = await fetch(`${url}/api/healthz`, { signal: controller.signal });
+        clearTimeout(timeout);
+        if (r.ok) {
+          res.json({ ok: true, message: `Server reachable — ${url} responded with ${r.status}` });
+        } else {
+          res.json({ ok: false, message: `Server responded with HTTP ${r.status}` });
+        }
+      } catch (err) {
+        res.json({ ok: false, message: `Cannot reach server: ${err instanceof Error ? err.message : String(err)}` });
+      }
+    } else {
+      res.status(400).json({ ok: false, message: "Unknown service" });
+    }
+  } catch (err) {
+    req.log.error({ err }, "Infrastructure test error");
+    res.status(500).json({ ok: false, message: "Internal server error" });
   }
 });
 
