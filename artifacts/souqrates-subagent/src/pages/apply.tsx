@@ -1,12 +1,11 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { ArrowLeft, Loader2, Send } from "lucide-react";
-import { TELEGRAM_ID } from "@/App";
-
 export default function ApplyPage() {
   const [, navigate] = useLocation();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const TELEGRAM_ID = localStorage.getItem("telegram_id") ?? "demo_user_001";
 
   const [form, setForm] = useState({
     fullName: "",

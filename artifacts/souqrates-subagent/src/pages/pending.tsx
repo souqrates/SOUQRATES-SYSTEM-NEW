@@ -2,8 +2,6 @@ import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { Clock, CheckCircle, XCircle, RefreshCw } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { TELEGRAM_ID } from "@/App";
-
 type ApplicationStatus = {
   application: {
     id: number;
@@ -17,6 +15,7 @@ type ApplicationStatus = {
 
 export default function PendingPage() {
   const [, navigate] = useLocation();
+  const TELEGRAM_ID = localStorage.getItem("telegram_id") ?? "demo_user_001";
 
   const { data, isLoading, refetch } = useQuery<ApplicationStatus>({
     queryKey: ["subagent-me", TELEGRAM_ID],

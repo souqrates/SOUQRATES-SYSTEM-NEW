@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { Shield, Send, History, Loader2, CheckCircle, AlertCircle, User } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { TELEGRAM_ID } from "@/App";
-
 type SubagentStatus = {
   application: { fullName: string; status: string };
   skzBalance: number;
@@ -19,6 +17,7 @@ type Transfer = {
 
 export default function DashboardPage() {
   const queryClient = useQueryClient();
+  const TELEGRAM_ID = localStorage.getItem("telegram_id") ?? "demo_user_001";
   const [toId, setToId] = useState("");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");

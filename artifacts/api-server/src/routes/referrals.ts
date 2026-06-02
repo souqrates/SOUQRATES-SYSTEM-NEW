@@ -48,7 +48,7 @@ router.get("/my", async (req, res) => {
       }
     }
 
-    const referralLink = `https://t.me/souqrates_bot?start=${user.referralCode}`;
+    const referralLink = `https://t.me/souqrates_system_bot/system?startapp=${user.referralCode}`;
 
     const allReferrees = [
       ...level1.map(u => ({ id: u.id, username: u.username, firstName: u.firstName, level: 1, joinedAt: u.createdAt.toISOString(), earned: parseFloat(u.totalEarned) })),

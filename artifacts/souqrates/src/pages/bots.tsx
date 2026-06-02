@@ -1,53 +1,20 @@
-import { useState } from "react";
 import { useListBots, getListBotsQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Bot as BotIcon, ArrowRight, Activity, Users, ChevronLeft, X } from "lucide-react";
+import { Bot as BotIcon, ArrowRight, Activity, Users, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
-interface EmbeddedBot {
-  name: string;
-  url: string;
-}
-
-function BotFrame({ bot, onClose }: { bot: EmbeddedBot; onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-[#08080f]">
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-purple-900/40 bg-[#0d0d1a]">
-        <button
-          onClick={onClose}
-          className="flex items-center gap-1.5 text-sm text-purple-300 hover:text-white transition-colors font-orbitron tracking-wider"
-        >
-          <ChevronLeft className="h-4 w-4" />
-          BACK
-        </button>
-        <span className="flex-1 text-center font-orbitron text-sm tracking-widest text-white truncate">
-          {bot.name.toUpperCase()}
-        </span>
-        <button
-          onClick={onClose}
-          className="text-muted-foreground hover:text-white transition-colors"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-      <iframe
-        src={bot.url}
-        className="flex-1 w-full border-0"
-        title={bot.name}
-        allow="clipboard-read; clipboard-write"
-      />
-    </div>
-  );
+function launchBot(url: string) {
+  const tg = window.Telegram?.WebApp;
+  if (tg && url.startsWith("https://t.me/")) {
+    tg.openTelegramLink(url);
+  } else {
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
 }
 
 export default function Bots() {
   const { data: bots, isLoading } = useListBots({ query: { queryKey: getListBotsQueryKey() } });
-  const [embedded, setEmbedded] = useState<EmbeddedBot | null>(null);
-
-  if (embedded) {
-    return <BotFrame bot={embedded} onClose={() => setEmbedded(null)} />;
-  }
 
   return (
     <div className="space-y-6">
@@ -112,15 +79,13 @@ export default function Bots() {
                 disabled={!bot.isActive || !bot.botUrl}
                 variant={bot.isActive && bot.botUrl ? "default" : "outline"}
                 onClick={() => {
-                  if (bot.isActive && bot.botUrl) {
-                    setEmbedded({ name: bot.name, url: bot.botUrl });
-                  }
+                  if (bot.isActive && bot.botUrl) launchBot(bot.botUrl);
                 }}
               >
                 {bot.isActive && bot.botUrl ? (
                   <>
                     LAUNCH APP
-                    <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                    <ExternalLink className="h-4 w-4 ml-2 group-hover:scale-110 transition-transform" />
                   </>
                 ) : bot.isActive ? (
                   "LINK PENDING"
