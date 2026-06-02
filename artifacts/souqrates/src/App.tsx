@@ -55,6 +55,7 @@ function Router() {
         <Route path="/manager/souq" component={ManagerLayout} />
         <Route path="/manager/subagents" component={ManagerLayout} />
         <Route path="/manager/settings" component={ManagerLayout} />
+        <Route path="/manager/infrastructure" component={ManagerLayout} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
