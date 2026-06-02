@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { Layout } from "@/components/layout";
 import { useListSouqProducts } from "@workspace/api-client-react";
-import { SouqProduct, SouqProductCategory } from "@workspace/api-client-react/src/generated/api.schemas";
+import { SouqProduct, SouqProductCategory } from "@workspace/api-client-react";
 import { Search, Book, FileCode2, GraduationCap, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";

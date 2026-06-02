@@ -16,6 +16,7 @@ function TelegramInit({ children }: { children: React.ReactNode }) {
     initTelegram();
     const id = getTelegramId();
     localStorage.setItem("telegram_id", id);
+    localStorage.setItem("souqrates_telegram_id", id);
   }, []);
   return <>{children}</>;
 }

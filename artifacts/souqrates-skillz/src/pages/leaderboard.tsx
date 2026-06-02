@@ -1,5 +1,5 @@
 import { useLocation, useParams } from "wouter";
-import { useFetchLeaderboard } from "@workspace/api-client-react";
+import { useFetchLeaderboard, useGetGame } from "@workspace/api-client-react";
 import { ArrowLeft, Trophy, Crown } from "lucide-react";
 
 export default function LeaderboardPage() {
@@ -8,6 +8,7 @@ export default function LeaderboardPage() {
   const [, navigate] = useLocation();
 
   const { data: entries = [], isLoading } = useFetchLeaderboard({ game_id: gameId, limit: 20 });
+  const { data: game } = useGetGame(gameId);
 
   const rankColors = ["text-yellow-400", "text-gray-300", "text-amber-600"];
 
@@ -15,11 +16,13 @@ export default function LeaderboardPage() {
     <div className="min-h-screen bg-background">
       <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border/50">
         <div className="max-w-screen-md mx-auto px-4 py-3 flex items-center gap-3">
-          <button onClick={() => navigate(-1 as any)} className="p-2 rounded-lg hover:bg-muted transition-colors">
+          <button onClick={() => navigate("/")} className="p-2 rounded-lg hover:bg-muted transition-colors">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <div className="text-xs text-muted-foreground tracking-widest">Game #{gameId}</div>
+            <div className="text-xs text-muted-foreground tracking-widest">
+              {game?.name ?? `Game #${gameId}`}
+            </div>
             <div className="text-base font-black tracking-wider">LEADERBOARD</div>
           </div>
         </div>

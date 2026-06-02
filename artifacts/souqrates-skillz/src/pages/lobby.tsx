@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { useListGames } from "@workspace/api-client-react";
+import { useListGames, useGetWalletBalance } from "@workspace/api-client-react";
 import { History, ChevronRight, Star, Clock, Atom, Zap, Brain, Cpu } from "lucide-react";
+import { getTelegramId } from "@/lib/user";
 
 const CATEGORIES = ["All", "Timing", "Physics", "Swipe", "Memory", "Strategy"];
 
@@ -64,6 +65,9 @@ export default function Lobby() {
   const { data: games = [], isLoading } = useListGames(
     activeCategory !== "All" ? { category: activeCategory } : {}
   );
+  const { data: allGames = [] } = useListGames({});
+  const { data: balanceData } = useGetWalletBalance({ telegram_id: getTelegramId() });
+  const balance = balanceData ? parseFloat(String(balanceData.skzBalance)) : null;
 
   return (
     <div className="min-h-screen bg-[#06060f] relative overflow-hidden">
@@ -84,7 +88,18 @@ export default function Lobby() {
             <div className="text-[9px] text-muted-foreground mt-0.5">50 GAMES &bull; WIN SKZ PRIZES</div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => navigate("/leaderboard")} className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors px-2.5 py-1.5 rounded-lg hover:bg-white/5 border border-white/5">
+            {balance !== null && (
+              <div className="text-[10px] font-black px-2.5 py-1.5 rounded-lg border border-yellow-500/20" style={{ background: "rgba(234,179,8,0.07)", color: "#eab308" }}>
+                {balance.toFixed(0)} SKZ
+              </div>
+            )}
+            <button
+              onClick={() => {
+                const firstId = allGames[0]?.id;
+                if (firstId) navigate(`/leaderboard/${firstId}`);
+              }}
+              className="flex items-center gap-1.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors px-2.5 py-1.5 rounded-lg hover:bg-white/5 border border-white/5"
+            >
               <Star className="w-3 h-3" />
               Board
             </button>

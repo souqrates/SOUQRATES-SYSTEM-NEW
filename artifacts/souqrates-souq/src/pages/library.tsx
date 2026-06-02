@@ -1,7 +1,7 @@
 import { Layout } from "@/components/layout";
 import { useGetMySouqLibrary } from "@workspace/api-client-react";
 import { getTelegramId } from "@/hooks/use-auth";
-import { SouqLibraryItem } from "@workspace/api-client-react/src/generated/api.schemas";
+import { SouqLibraryItem } from "@workspace/api-client-react";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
