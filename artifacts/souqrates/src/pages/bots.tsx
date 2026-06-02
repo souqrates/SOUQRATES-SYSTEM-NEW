@@ -1,15 +1,52 @@
+import { useState } from "react";
 import { useListBots, getListBotsQueryKey } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Bot as BotIcon, ArrowRight, Activity, Users, ExternalLink } from "lucide-react";
+import { Bot as BotIcon, ArrowRight, Activity, Users, ChevronLeft, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+
+interface EmbeddedBot {
+  name: string;
+  url: string;
+}
+
+function BotFrame({ bot, onClose }: { bot: EmbeddedBot; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col bg-[#08080f]">
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-purple-900/40 bg-[#0d0d1a]">
+        <button
+          onClick={onClose}
+          className="flex items-center gap-1.5 text-sm text-purple-300 hover:text-white transition-colors font-orbitron tracking-wider"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          BACK
+        </button>
+        <span className="flex-1 text-center font-orbitron text-sm tracking-widest text-white truncate">
+          {bot.name.toUpperCase()}
+        </span>
+        <button
+          onClick={onClose}
+          className="text-muted-foreground hover:text-white transition-colors"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      <iframe
+        src={bot.url}
+        className="flex-1 w-full border-0"
+        title={bot.name}
+        allow="clipboard-read; clipboard-write"
+      />
+    </div>
+  );
+}
 
 export default function Bots() {
   const { data: bots, isLoading } = useListBots({ query: { queryKey: getListBotsQueryKey() } });
+  const [embedded, setEmbedded] = useState<EmbeddedBot | null>(null);
 
-  function handleLaunch(botUrl: string | null | undefined) {
-    if (!botUrl) return;
-    window.open(botUrl, "_blank", "noopener,noreferrer");
+  if (embedded) {
+    return <BotFrame bot={embedded} onClose={() => setEmbedded(null)} />;
   }
 
   return (
@@ -66,12 +103,6 @@ export default function Bots() {
                   <Activity className="h-3.5 w-3.5 text-green-400/70" />
                   <span>System Linked</span>
                 </div>
-                {bot.botUrl && (
-                  <div className="flex items-center text-xs text-purple-400/80 gap-1 ml-auto">
-                    <ExternalLink className="h-3 w-3" />
-                    <span className="font-orbitron tracking-wider">{bot.botUrl}</span>
-                  </div>
-                )}
               </div>
             </CardContent>
 
@@ -80,7 +111,11 @@ export default function Bots() {
                 className="w-full font-orbitron tracking-widest group"
                 disabled={!bot.isActive || !bot.botUrl}
                 variant={bot.isActive && bot.botUrl ? "default" : "outline"}
-                onClick={() => handleLaunch(bot.botUrl)}
+                onClick={() => {
+                  if (bot.isActive && bot.botUrl) {
+                    setEmbedded({ name: bot.name, url: bot.botUrl });
+                  }
+                }}
               >
                 {bot.isActive && bot.botUrl ? (
                   <>
