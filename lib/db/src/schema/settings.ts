@@ -15,6 +15,13 @@ export const settingsTable = pgTable("settings", {
   maintenanceMsg: text("maintenance_msg"),
   botToken: text("bot_token"),
   welcomeMessage: text("welcome_message"),
+  // Infrastructure / integrations
+  sentryDsn: text("sentry_dsn"),
+  upstashRedisUrl: text("upstash_redis_url"),
+  upstashRedisToken: text("upstash_redis_token"),
+  upstashQstashUrl: text("upstash_qstash_url"),
+  upstashQstashToken: text("upstash_qstash_token"),
+  contaboWebhookUrl: text("contabo_webhook_url"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
