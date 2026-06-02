@@ -463,6 +463,243 @@ export const ListAllTransactionsResponse = zod.object({
 
 
 /**
+ * @summary List all games
+ */
+export const ListGamesQueryParams = zod.object({
+  "category": zod.coerce.string().optional(),
+  "isActive": zod.coerce.boolean().optional()
+})
+
+export const ListGamesResponseItem = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "category": zod.string(),
+  "description": zod.string(),
+  "isActive": zod.boolean(),
+  "totalPlays": zod.number(),
+  "difficultyLabel": zod.string().nullish(),
+  "tags": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+export const ListGamesResponse = zod.array(ListGamesResponseItem)
+
+
+/**
+ * @summary Get game by ID with tickets
+ */
+export const GetGameParams = zod.object({
+  "gameId": zod.coerce.number()
+})
+
+export const GetGameResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "category": zod.string(),
+  "description": zod.string(),
+  "isActive": zod.boolean(),
+  "totalPlays": zod.number(),
+  "difficultyLabel": zod.string().nullish(),
+  "tags": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "tickets": zod.array(zod.object({
+  "id": zod.number(),
+  "gameId": zod.number(),
+  "tier": zod.number(),
+  "name": zod.string(),
+  "entryPrice": zod.number(),
+  "prize": zod.number(),
+  "targetScore": zod.number(),
+  "timeLimitSeconds": zod.number(),
+  "correctHitValue": zod.number(),
+  "wrongHitPenalty": zod.number(),
+  "isActive": zod.boolean()
+}))
+})
+
+
+/**
+ * @summary Update game config (admin)
+ */
+export const UpdateGameParams = zod.object({
+  "gameId": zod.coerce.number()
+})
+
+export const UpdateGameBody = zod.object({
+  "name": zod.string().optional(),
+  "description": zod.string().optional(),
+  "isActive": zod.boolean().optional(),
+  "difficultyLabel": zod.string().optional(),
+  "tags": zod.string().optional()
+})
+
+export const UpdateGameResponse = zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "slug": zod.string(),
+  "category": zod.string(),
+  "description": zod.string(),
+  "isActive": zod.boolean(),
+  "totalPlays": zod.number(),
+  "difficultyLabel": zod.string().nullish(),
+  "tags": zod.string().nullish(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Start a game session (deducts entry fee)
+ */
+export const StartGameSessionBody = zod.object({
+  "telegramId": zod.string(),
+  "gameId": zod.number(),
+  "ticketId": zod.number()
+})
+
+export const StartGameSessionResponse = zod.object({
+  "id": zod.number(),
+  "userId": zod.number(),
+  "gameId": zod.number(),
+  "ticketId": zod.number(),
+  "status": zod.enum(['active', 'won', 'lost']),
+  "score": zod.number().optional(),
+  "entryPrice": zod.number(),
+  "prize": zod.number(),
+  "targetScore": zod.number(),
+  "timeLimitSeconds": zod.number(),
+  "correctHitValue": zod.number(),
+  "wrongHitPenalty": zod.number(),
+  "startedAt": zod.string(),
+  "endedAt": zod.string().nullish()
+})
+
+
+/**
+ * @summary End a game session (awards prize if won)
+ */
+export const EndGameSessionParams = zod.object({
+  "sessionId": zod.coerce.number()
+})
+
+export const EndGameSessionBody = zod.object({
+  "finalScore": zod.number(),
+  "won": zod.boolean()
+})
+
+export const EndGameSessionResponse = zod.object({
+  "sessionId": zod.number(),
+  "won": zod.boolean(),
+  "finalScore": zod.number(),
+  "targetScore": zod.number(),
+  "prizeAwarded": zod.number(),
+  "newBalance": zod.number(),
+  "message": zod.string().optional()
+})
+
+
+/**
+ * @summary Get game session history for a user
+ */
+export const GetSessionHistoryQueryParams = zod.object({
+  "telegram_id": zod.coerce.string(),
+  "page": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().optional()
+})
+
+export const GetSessionHistoryResponse = zod.object({
+  "sessions": zod.array(zod.object({
+  "id": zod.number(),
+  "userId": zod.number(),
+  "gameId": zod.number(),
+  "ticketId": zod.number(),
+  "status": zod.enum(['active', 'won', 'lost']),
+  "score": zod.number().optional(),
+  "entryPrice": zod.number(),
+  "prize": zod.number(),
+  "targetScore": zod.number(),
+  "timeLimitSeconds": zod.number(),
+  "correctHitValue": zod.number(),
+  "wrongHitPenalty": zod.number(),
+  "startedAt": zod.string(),
+  "endedAt": zod.string().nullish()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Get leaderboard for a specific game
+ */
+export const FetchLeaderboardQueryParams = zod.object({
+  "game_id": zod.coerce.number(),
+  "limit": zod.coerce.number().optional()
+})
+
+export const FetchLeaderboardResponseItem = zod.object({
+  "rank": zod.number(),
+  "userId": zod.number(),
+  "username": zod.string().nullish(),
+  "firstName": zod.string().nullish(),
+  "bestScore": zod.number(),
+  "totalWins": zod.number(),
+  "totalPrizeEarned": zod.number().optional()
+})
+export const FetchLeaderboardResponse = zod.array(FetchLeaderboardResponseItem)
+
+
+/**
+ * @summary Overall games stats (admin)
+ */
+export const GetGamesStatsResponse = zod.object({
+  "totalGames": zod.number(),
+  "totalSessions": zod.number(),
+  "totalWins": zod.number(),
+  "totalPrizesAwarded": zod.number(),
+  "totalRevenue": zod.number(),
+  "activeGames": zod.number(),
+  "topGame": zod.string().nullish()
+})
+
+
+/**
+ * @summary Update a specific ticket tier for a game (admin)
+ */
+export const UpdateGameTicketParams = zod.object({
+  "gameId": zod.coerce.number()
+})
+
+export const UpdateGameTicketBody = zod.object({
+  "tier": zod.number(),
+  "name": zod.string().optional(),
+  "entryPrice": zod.number().optional(),
+  "prize": zod.number().optional(),
+  "targetScore": zod.number().optional(),
+  "timeLimitSeconds": zod.number().optional(),
+  "correctHitValue": zod.number().optional(),
+  "wrongHitPenalty": zod.number().optional(),
+  "isActive": zod.boolean().optional()
+})
+
+export const UpdateGameTicketResponseItem = zod.object({
+  "id": zod.number(),
+  "gameId": zod.number(),
+  "tier": zod.number(),
+  "name": zod.string(),
+  "entryPrice": zod.number(),
+  "prize": zod.number(),
+  "targetScore": zod.number(),
+  "timeLimitSeconds": zod.number(),
+  "correctHitValue": zod.number(),
+  "wrongHitPenalty": zod.number(),
+  "isActive": zod.boolean()
+})
+export const UpdateGameTicketResponse = zod.array(UpdateGameTicketResponseItem)
+
+
+/**
  * @summary Get system settings
  */
 export const GetSettingsResponse = zod.object({

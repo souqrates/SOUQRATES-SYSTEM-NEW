@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { usersTable, transactionsTable, settingsTable } from "@workspace/db";
-import { eq, sql, desc } from "drizzle-orm";
+import { eq, sql, desc, and } from "drizzle-orm";
 import { GetMyReferralsQueryParams, GetReferralEarningsQueryParams, GetReferralLeaderboardQueryParams } from "@workspace/api-zod";
 
 const router = Router();
@@ -90,19 +90,22 @@ router.get("/earnings", async (req, res) => {
 
     // Get all commission transactions
     const commissions = await db.select().from(transactionsTable)
-      .where(eq(transactionsTable.userId, user.id))
-      .where(eq(transactionsTable.type, "commission"))
-      .where(eq(transactionsTable.status, "confirmed"));
+      .where(and(
+        eq(transactionsTable.userId, user.id),
+        eq(transactionsTable.type, "commission"),
+        eq(transactionsTable.status, "confirmed"),
+      ));
 
     const now = new Date();
     const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const totalEarned = commissions.reduce((s, t) => s + parseFloat(t.amount), 0);
-    const thisMonth = commissions.filter(t => t.createdAt >= firstOfMonth).reduce((s, t) => s + parseFloat(t.amount), 0);
+    type Tx = typeof commissions[number];
+    const totalEarned = commissions.reduce((s: number, t: Tx) => s + parseFloat(t.amount), 0);
+    const thisMonth = commissions.filter((t: Tx) => t.createdAt >= firstOfMonth).reduce((s: number, t: Tx) => s + parseFloat(t.amount), 0);
 
     // Approximate levels by note content
-    const l1 = commissions.filter(t => t.note?.startsWith("L1")).reduce((s, t) => s + parseFloat(t.amount), 0);
-    const l2 = commissions.filter(t => t.note?.startsWith("L2")).reduce((s, t) => s + parseFloat(t.amount), 0);
-    const l3 = commissions.filter(t => t.note?.startsWith("L3")).reduce((s, t) => s + parseFloat(t.amount), 0);
+    const l1 = commissions.filter((t: Tx) => t.note?.startsWith("L1")).reduce((s: number, t: Tx) => s + parseFloat(t.amount), 0);
+    const l2 = commissions.filter((t: Tx) => t.note?.startsWith("L2")).reduce((s: number, t: Tx) => s + parseFloat(t.amount), 0);
+    const l3 = commissions.filter((t: Tx) => t.note?.startsWith("L3")).reduce((s: number, t: Tx) => s + parseFloat(t.amount), 0);
 
     res.json({ totalEarned, level1Earned: l1, level2Earned: l2, level3Earned: l3, thisMonth });
   } catch (err) {

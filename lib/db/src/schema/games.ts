@@ -1,0 +1,58 @@
+import { pgTable, text, serial, timestamp, boolean, integer, numeric } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod/v4";
+
+export const skillzGamesTable = pgTable("skillz_games", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  category: text("category").notNull(),
+  description: text("description").notNull().default(""),
+  isActive: boolean("is_active").notNull().default(true),
+  totalPlays: integer("total_plays").notNull().default(0),
+  difficultyLabel: text("difficulty_label"),
+  tags: text("tags"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const gameTicketsTable = pgTable("game_tickets", {
+  id: serial("id").primaryKey(),
+  gameId: integer("game_id").notNull(),
+  tier: integer("tier").notNull(),
+  name: text("name").notNull(),
+  entryPrice: numeric("entry_price", { precision: 18, scale: 6 }).notNull().default("10"),
+  prize: numeric("prize", { precision: 18, scale: 6 }).notNull().default("50"),
+  targetScore: integer("target_score").notNull().default(100),
+  timeLimitSeconds: integer("time_limit_seconds").notNull().default(60),
+  correctHitValue: integer("correct_hit_value").notNull().default(10),
+  wrongHitPenalty: integer("wrong_hit_penalty").notNull().default(5),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const gameSessionsTable = pgTable("game_sessions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  gameId: integer("game_id").notNull(),
+  ticketId: integer("ticket_id").notNull(),
+  status: text("status").notNull().default("active"),
+  score: integer("score").notNull().default(0),
+  entryPrice: numeric("entry_price", { precision: 18, scale: 6 }).notNull(),
+  prize: numeric("prize", { precision: 18, scale: 6 }).notNull(),
+  targetScore: integer("target_score").notNull(),
+  timeLimitSeconds: integer("time_limit_seconds").notNull(),
+  correctHitValue: integer("correct_hit_value").notNull(),
+  wrongHitPenalty: integer("wrong_hit_penalty").notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  endedAt: timestamp("ended_at", { withTimezone: true }),
+});
+
+export const insertGameSchema = createInsertSchema(skillzGamesTable).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertTicketSchema = createInsertSchema(gameTicketsTable).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertSessionSchema = createInsertSchema(gameSessionsTable).omit({ id: true });
+
+export type SkillzGame = typeof skillzGamesTable.$inferSelect;
+export type GameTicket = typeof gameTicketsTable.$inferSelect;
+export type GameSession = typeof gameSessionsTable.$inferSelect;

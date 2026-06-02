@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/skillz/"
+title = "Souqrates Skillz"
+version = "1.0.0"
+id = "artifacts/souqrates-skillz"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/skillz/" ]
+localPort = 24244
+
+[services.development]
+run = "pnpm --filter @workspace/souqrates-skillz run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/souqrates-skillz", "run", "build" ]
+publicDir = "artifacts/souqrates-skillz/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24244"
+BASE_PATH = "/skillz/"

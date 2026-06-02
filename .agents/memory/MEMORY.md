@@ -1,0 +1,2 @@
+- [OpenAPI Params collision fix](openapi-params-collision.md) — mixing path+query params on same endpoint causes TS2308 collision in api-zod barrel; fix by using query-only params.
+- [Games system architecture](games-architecture.md) — 50 games seeded, 5 ticket tiers each, Canvas gameplay engine in play.tsx, full admin at /manager/games.

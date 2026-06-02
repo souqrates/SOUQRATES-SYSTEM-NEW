@@ -1,10 +1,11 @@
 import { Switch, Route, useLocation } from "wouter";
 import { Link } from "wouter";
-import { ShieldCheck, LayoutDashboard, Users, Activity, Settings } from "lucide-react";
+import { ShieldCheck, LayoutDashboard, Users, Activity, Settings, Gamepad2 } from "lucide-react";
 import Dashboard from "./dashboard";
 import UsersPanel from "./users";
 import Transactions from "./transactions";
 import SystemSettings from "./settings";
+import GamesAdmin from "./games";
 
 export default function ManagerLayout() {
   const [location] = useLocation();
@@ -13,6 +14,7 @@ export default function ManagerLayout() {
     { href: "/manager", label: "Dashboard", icon: LayoutDashboard },
     { href: "/manager/users", label: "Users", icon: Users },
     { href: "/manager/transactions", label: "Transactions", icon: Activity },
+    { href: "/manager/games", label: "Games", icon: Gamepad2 },
     { href: "/manager/settings", label: "Settings", icon: Settings },
   ];
 
@@ -44,6 +46,7 @@ export default function ManagerLayout() {
           <Route path="/manager" component={Dashboard} />
           <Route path="/manager/users" component={UsersPanel} />
           <Route path="/manager/transactions" component={Transactions} />
+          <Route path="/manager/games" component={GamesAdmin} />
           <Route path="/manager/settings" component={SystemSettings} />
         </Switch>
       </div>

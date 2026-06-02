@@ -21,6 +21,8 @@ tags:
     description: Admin manager panel
   - name: settings
     description: System settings
+  - name: games
+    description: Skillz games catalog and sessions
 
 paths:
   /healthz:
@@ -437,6 +439,217 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TransactionListResponse"
+
+  /games:
+    get:
+      operationId: listGames
+      tags:
+        - games
+      summary: List all games
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: isActive
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Games list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SkillzGame"
+
+  /games/{gameId}:
+    get:
+      operationId: getGame
+      tags:
+        - games
+      summary: Get game by ID with tickets
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Game with tickets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SkillzGameDetail"
+    patch:
+      operationId: updateGame
+      tags:
+        - games
+      summary: Update game config (admin)
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GameConfigUpdate"
+      responses:
+        "200":
+          description: Updated game
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SkillzGame"
+
+  /games/session/start:
+    post:
+      operationId: startGameSession
+      tags:
+        - games
+      summary: Start a game session (deducts entry fee)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartSessionInput"
+      responses:
+        "200":
+          description: Session started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameSession"
+
+  /games/session/{sessionId}/end:
+    post:
+      operationId: endGameSession
+      tags:
+        - games
+      summary: End a game session (awards prize if won)
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EndSessionInput"
+      responses:
+        "200":
+          description: Session ended
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameSessionResult"
+
+  /games/session/history:
+    get:
+      operationId: getSessionHistory
+      tags:
+        - games
+      summary: Get game session history for a user
+      parameters:
+        - name: telegram_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Session history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionHistoryResponse"
+
+  /games/leaderboard:
+    get:
+      operationId: fetchLeaderboard
+      tags:
+        - games
+      summary: Get leaderboard for a specific game
+      parameters:
+        - name: game_id
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Game leaderboard
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GameLeaderboardEntry"
+
+  /games/stats:
+    get:
+      operationId: getGamesStats
+      tags:
+        - games
+      summary: Overall games stats (admin)
+      responses:
+        "200":
+          description: Games stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GamesStats"
+
+  /games/{gameId}/tickets:
+    patch:
+      operationId: updateGameTicket
+      tags:
+        - games
+      summary: Update a specific ticket tier for a game (admin)
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TicketUpdate"
+      responses:
+        "200":
+          description: Updated tickets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GameTicket"
 
   /settings:
     get:
@@ -1004,3 +1217,332 @@ components:
           type: string
         welcomeMessage:
           type: string
+
+    GameTicket:
+      type: object
+      required:
+        - id
+        - gameId
+        - tier
+        - name
+        - entryPrice
+        - prize
+        - targetScore
+        - timeLimitSeconds
+        - correctHitValue
+        - wrongHitPenalty
+        - isActive
+      properties:
+        id:
+          type: integer
+        gameId:
+          type: integer
+        tier:
+          type: integer
+        name:
+          type: string
+        entryPrice:
+          type: number
+        prize:
+          type: number
+        targetScore:
+          type: integer
+        timeLimitSeconds:
+          type: integer
+        correctHitValue:
+          type: integer
+        wrongHitPenalty:
+          type: integer
+        isActive:
+          type: boolean
+
+    SkillzGame:
+      type: object
+      required:
+        - id
+        - name
+        - slug
+        - category
+        - description
+        - isActive
+        - totalPlays
+        - createdAt
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+        category:
+          type: string
+        description:
+          type: string
+        isActive:
+          type: boolean
+        totalPlays:
+          type: integer
+        difficultyLabel:
+          type:
+            - string
+            - "null"
+        tags:
+          type:
+            - string
+            - "null"
+        createdAt:
+          type: string
+
+    SkillzGameDetail:
+      type: object
+      required:
+        - id
+        - name
+        - slug
+        - category
+        - description
+        - isActive
+        - totalPlays
+        - createdAt
+        - tickets
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+        category:
+          type: string
+        description:
+          type: string
+        isActive:
+          type: boolean
+        totalPlays:
+          type: integer
+        difficultyLabel:
+          type:
+            - string
+            - "null"
+        tags:
+          type:
+            - string
+            - "null"
+        createdAt:
+          type: string
+        tickets:
+          type: array
+          items:
+            $ref: "#/components/schemas/GameTicket"
+
+    GameConfigUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        isActive:
+          type: boolean
+        difficultyLabel:
+          type: string
+        tags:
+          type: string
+
+    TicketUpdate:
+      type: object
+      required:
+        - tier
+      properties:
+        tier:
+          type: integer
+        name:
+          type: string
+        entryPrice:
+          type: number
+        prize:
+          type: number
+        targetScore:
+          type: integer
+        timeLimitSeconds:
+          type: integer
+        correctHitValue:
+          type: integer
+        wrongHitPenalty:
+          type: integer
+        isActive:
+          type: boolean
+
+    StartSessionInput:
+      type: object
+      required:
+        - telegramId
+        - gameId
+        - ticketId
+      properties:
+        telegramId:
+          type: string
+        gameId:
+          type: integer
+        ticketId:
+          type: integer
+
+    GameSession:
+      type: object
+      required:
+        - id
+        - userId
+        - gameId
+        - ticketId
+        - status
+        - entryPrice
+        - prize
+        - targetScore
+        - timeLimitSeconds
+        - correctHitValue
+        - wrongHitPenalty
+        - startedAt
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        gameId:
+          type: integer
+        ticketId:
+          type: integer
+        status:
+          type: string
+          enum:
+            - active
+            - won
+            - lost
+        score:
+          type: integer
+        entryPrice:
+          type: number
+        prize:
+          type: number
+        targetScore:
+          type: integer
+        timeLimitSeconds:
+          type: integer
+        correctHitValue:
+          type: integer
+        wrongHitPenalty:
+          type: integer
+        startedAt:
+          type: string
+        endedAt:
+          type:
+            - string
+            - "null"
+
+    EndSessionInput:
+      type: object
+      required:
+        - finalScore
+        - won
+      properties:
+        finalScore:
+          type: integer
+        won:
+          type: boolean
+
+    GameSessionResult:
+      type: object
+      required:
+        - sessionId
+        - won
+        - finalScore
+        - targetScore
+        - prizeAwarded
+        - newBalance
+      properties:
+        sessionId:
+          type: integer
+        won:
+          type: boolean
+        finalScore:
+          type: integer
+        targetScore:
+          type: integer
+        prizeAwarded:
+          type: number
+        newBalance:
+          type: number
+        message:
+          type: string
+
+    SessionHistoryResponse:
+      type: object
+      required:
+        - sessions
+        - total
+        - page
+        - limit
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/GameSession"
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    GameLeaderboardEntry:
+      type: object
+      required:
+        - rank
+        - userId
+        - bestScore
+        - totalWins
+      properties:
+        rank:
+          type: integer
+        userId:
+          type: integer
+        username:
+          type:
+            - string
+            - "null"
+        firstName:
+          type:
+            - string
+            - "null"
+        bestScore:
+          type: integer
+        totalWins:
+          type: integer
+        totalPrizeEarned:
+          type: number
+
+    GamesStats:
+      type: object
+      required:
+        - totalGames
+        - totalSessions
+        - totalWins
+        - totalPrizesAwarded
+        - totalRevenue
+        - activeGames
+      properties:
+        totalGames:
+          type: integer
+        totalSessions:
+          type: integer
+        totalWins:
+          type: integer
+        totalPrizesAwarded:
+          type: number
+        totalRevenue:
+          type: number
+        activeGames:
+          type: integer
+        topGame:
+          type:
+            - string
+            - "null"

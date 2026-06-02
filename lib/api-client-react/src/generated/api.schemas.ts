@@ -274,6 +274,149 @@ export interface SettingsUpdate {
   welcomeMessage?: string;
 }
 
+export interface GameTicket {
+  id: number;
+  gameId: number;
+  tier: number;
+  name: string;
+  entryPrice: number;
+  prize: number;
+  targetScore: number;
+  timeLimitSeconds: number;
+  correctHitValue: number;
+  wrongHitPenalty: number;
+  isActive: boolean;
+}
+
+export interface SkillzGame {
+  id: number;
+  name: string;
+  slug: string;
+  category: string;
+  description: string;
+  isActive: boolean;
+  totalPlays: number;
+  /** @nullable */
+  difficultyLabel?: string | null;
+  /** @nullable */
+  tags?: string | null;
+  createdAt: string;
+}
+
+export interface SkillzGameDetail {
+  id: number;
+  name: string;
+  slug: string;
+  category: string;
+  description: string;
+  isActive: boolean;
+  totalPlays: number;
+  /** @nullable */
+  difficultyLabel?: string | null;
+  /** @nullable */
+  tags?: string | null;
+  createdAt: string;
+  tickets: GameTicket[];
+}
+
+export interface GameConfigUpdate {
+  name?: string;
+  description?: string;
+  isActive?: boolean;
+  difficultyLabel?: string;
+  tags?: string;
+}
+
+export interface TicketUpdate {
+  tier: number;
+  name?: string;
+  entryPrice?: number;
+  prize?: number;
+  targetScore?: number;
+  timeLimitSeconds?: number;
+  correctHitValue?: number;
+  wrongHitPenalty?: number;
+  isActive?: boolean;
+}
+
+export interface StartSessionInput {
+  telegramId: string;
+  gameId: number;
+  ticketId: number;
+}
+
+export type GameSessionStatus = typeof GameSessionStatus[keyof typeof GameSessionStatus];
+
+
+export const GameSessionStatus = {
+  active: 'active',
+  won: 'won',
+  lost: 'lost',
+} as const;
+
+export interface GameSession {
+  id: number;
+  userId: number;
+  gameId: number;
+  ticketId: number;
+  status: GameSessionStatus;
+  score?: number;
+  entryPrice: number;
+  prize: number;
+  targetScore: number;
+  timeLimitSeconds: number;
+  correctHitValue: number;
+  wrongHitPenalty: number;
+  startedAt: string;
+  /** @nullable */
+  endedAt?: string | null;
+}
+
+export interface EndSessionInput {
+  finalScore: number;
+  won: boolean;
+}
+
+export interface GameSessionResult {
+  sessionId: number;
+  won: boolean;
+  finalScore: number;
+  targetScore: number;
+  prizeAwarded: number;
+  newBalance: number;
+  message?: string;
+}
+
+export interface SessionHistoryResponse {
+  sessions: GameSession[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface GameLeaderboardEntry {
+  rank: number;
+  userId: number;
+  /** @nullable */
+  username?: string | null;
+  /** @nullable */
+  firstName?: string | null;
+  bestScore: number;
+  totalWins: number;
+  totalPrizeEarned?: number;
+}
+
+export interface GamesStats {
+  totalGames: number;
+  totalSessions: number;
+  totalWins: number;
+  totalPrizesAwarded: number;
+  totalRevenue: number;
+  activeGames: number;
+  /** @nullable */
+  topGame?: string | null;
+}
+
 export type GetMeParams = {
 telegram_id: string;
 };
@@ -311,5 +454,21 @@ page?: number;
 limit?: number;
 type?: string;
 status?: string;
+};
+
+export type ListGamesParams = {
+category?: string;
+isActive?: boolean;
+};
+
+export type GetSessionHistoryParams = {
+telegram_id: string;
+page?: number;
+limit?: number;
+};
+
+export type FetchLeaderboardParams = {
+game_id: number;
+limit?: number;
 };
 
