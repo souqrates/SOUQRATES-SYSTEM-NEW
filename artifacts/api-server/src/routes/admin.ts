@@ -171,6 +171,54 @@ router.get("/transactions", async (req, res) => {
   }
 });
 
+// POST /api/admin/users/:userId/send-skz
+router.post("/users/:userId/send-skz", async (req, res) => {
+  const userId = parseInt(req.params.userId);
+  if (isNaN(userId)) { res.status(400).json({ error: "Invalid user ID" }); return; }
+  const { amount, note } = req.body;
+  const amt = parseFloat(amount);
+  if (!amount || isNaN(amt) || amt <= 0) { res.status(400).json({ error: "Invalid amount" }); return; }
+  try {
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+    const newBalance = (parseFloat(user.skzBalance) + amt).toFixed(6);
+    await db.update(usersTable).set({ skzBalance: newBalance }).where(eq(usersTable.id, userId));
+    await db.insert(transactionsTable).values({
+      userId, type: "transfer_in", amount: amt.toFixed(6), status: "confirmed",
+      note: note || "Admin credit",
+    });
+    res.json({ success: true, newBalance: parseFloat(newBalance) });
+  } catch (err) {
+    req.log.error({ err }, "Error sending SKZ to user");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /api/admin/users/:userId/deduct-skz
+router.post("/users/:userId/deduct-skz", async (req, res) => {
+  const userId = parseInt(req.params.userId);
+  if (isNaN(userId)) { res.status(400).json({ error: "Invalid user ID" }); return; }
+  const { amount, note } = req.body;
+  const amt = parseFloat(amount);
+  if (!amount || isNaN(amt) || amt <= 0) { res.status(400).json({ error: "Invalid amount" }); return; }
+  try {
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+    if (!user) { res.status(404).json({ error: "User not found" }); return; }
+    const currentBal = parseFloat(user.skzBalance);
+    if (currentBal < amt) { res.status(400).json({ error: "Insufficient balance" }); return; }
+    const newBalance = (currentBal - amt).toFixed(6);
+    await db.update(usersTable).set({ skzBalance: newBalance }).where(eq(usersTable.id, userId));
+    await db.insert(transactionsTable).values({
+      userId, type: "transfer_out", amount: amt.toFixed(6), status: "confirmed",
+      note: note || "Admin deduction",
+    });
+    res.json({ success: true, newBalance: parseFloat(newBalance) });
+  } catch (err) {
+    req.log.error({ err }, "Error deducting SKZ from user");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // GET /api/admin/subagent-applications
 router.get("/subagent-applications", async (req, res) => {
   try {
