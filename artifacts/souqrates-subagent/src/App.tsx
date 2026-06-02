@@ -2,25 +2,31 @@ import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import WelcomePage from "@/pages/welcome";
+import ApplyPage from "@/pages/apply";
+import PendingPage from "@/pages/pending";
+import DashboardPage from "@/pages/dashboard";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
 
-function Home() {
-  return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gray-50">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold text-gray-900">Replit Agent is building...</h1>
-        <p className="mt-2 text-sm text-gray-600">Your app will appear here once it's ready.</p>
-      </div>
-    </div>
-  );
-}
+const TELEGRAM_ID = (() => {
+  const stored = localStorage.getItem("souqrates_telegram_id");
+  if (stored) return stored;
+  const id = "demo_user_001";
+  localStorage.setItem("souqrates_telegram_id", id);
+  return id;
+})();
+
+export { TELEGRAM_ID };
 
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Home} />
+      <Route path="/" component={WelcomePage} />
+      <Route path="/apply" component={ApplyPage} />
+      <Route path="/pending" component={PendingPage} />
+      <Route path="/dashboard" component={DashboardPage} />
       <Route component={NotFound} />
     </Switch>
   );

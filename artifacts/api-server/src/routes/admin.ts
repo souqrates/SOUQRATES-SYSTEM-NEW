@@ -171,4 +171,62 @@ router.get("/transactions", async (req, res) => {
   }
 });
 
+// GET /api/admin/subagent-applications
+router.get("/subagent-applications", async (req, res) => {
+  try {
+    const apps = await db
+      .select()
+      .from(subagentApplicationsTable)
+      .orderBy(desc(subagentApplicationsTable.createdAt));
+    res.json(apps.map((a) => ({
+      id: a.id,
+      userId: a.userId,
+      telegramId: a.telegramId,
+      fullName: a.fullName,
+      phone: a.phone,
+      email: a.email,
+      company: a.company,
+      experience: a.experience,
+      motivation: a.motivation,
+      status: a.status,
+      reviewNote: a.reviewNote,
+      reviewedAt: a.reviewedAt ? a.reviewedAt.toISOString() : null,
+      createdAt: a.createdAt.toISOString(),
+    })));
+  } catch (err) {
+    req.log.error({ err }, "Error listing subagent applications");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// PATCH /api/admin/subagent-applications/:id
+router.patch("/subagent-applications/:id", async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
+  const { status, reviewNote } = req.body;
+  if (!status || !["approved", "rejected"].includes(status)) {
+    res.status(400).json({ error: "status must be approved or rejected" });
+    return;
+  }
+  try {
+    const updated = await db
+      .update(subagentApplicationsTable)
+      .set({ status, reviewNote: reviewNote || null, reviewedAt: new Date() })
+      .where(eq(subagentApplicationsTable.id, id))
+      .returning();
+    if (updated.length === 0) { res.status(404).json({ error: "Application not found" }); return; }
+    const a = updated[0];
+    res.json({
+      id: a.id, userId: a.userId, telegramId: a.telegramId, fullName: a.fullName,
+      phone: a.phone, email: a.email, company: a.company, experience: a.experience,
+      motivation: a.motivation, status: a.status, reviewNote: a.reviewNote,
+      reviewedAt: a.reviewedAt ? a.reviewedAt.toISOString() : null,
+      createdAt: a.createdAt.toISOString(),
+    });
+  } catch (err) {
+    req.log.error({ err }, "Error reviewing subagent application");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 export default router;
