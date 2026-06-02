@@ -1,5 +1,5 @@
 import { db, skillzGamesTable, gameTicketsTable } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { logger } from "./logger";
 
 const TICKET_TIERS: Record<string, Array<{ tier: number; name: string; entryPrice: string; prize: string; targetScore: number; timeLimitSeconds: number; correctHitValue: number; wrongHitPenalty: number }>> = {
@@ -81,8 +81,8 @@ const GAMES_SEED = [
 
 export async function seedGames(): Promise<void> {
   try {
-    const existingCount = await db.select({ count: sql<number>`count(*)` }).from(skillzGamesTable);
-    if (Number(existingCount[0].count) >= 50) {
+    const ticketCount = await db.select({ count: sql<number>`count(*)` }).from(gameTicketsTable);
+    if (Number(ticketCount[0].count) >= 250) {
       return;
     }
 
@@ -112,7 +112,7 @@ export async function seedGames(): Promise<void> {
       for (const t of tiers) {
         const existingTicket = await db.select()
           .from(gameTicketsTable)
-          .where(eq(gameTicketsTable.gameId, gameId))
+          .where(and(eq(gameTicketsTable.gameId, gameId), eq(gameTicketsTable.tier, t.tier)))
           .limit(1);
 
         if (existingTicket.length === 0) {
