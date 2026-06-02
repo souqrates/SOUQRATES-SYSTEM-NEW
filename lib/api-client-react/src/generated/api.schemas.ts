@@ -184,6 +184,8 @@ export interface Bot {
   userCount: number;
   /** @nullable */
   iconEmoji?: string | null;
+  /** @nullable */
+  botUrl?: string | null;
   createdAt: string;
 }
 
@@ -192,6 +194,7 @@ export interface BotUpdate {
   description?: string;
   isActive?: boolean;
   iconEmoji?: string;
+  botUrl?: string;
 }
 
 export interface AdminDashboard {

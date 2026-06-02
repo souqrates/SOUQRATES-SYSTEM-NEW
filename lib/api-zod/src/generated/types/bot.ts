@@ -16,5 +16,7 @@ export interface Bot {
   userCount: number;
   /** @nullable */
   iconEmoji?: string | null;
+  /** @nullable */
+  botUrl?: string | null;
   createdAt: string;
 }

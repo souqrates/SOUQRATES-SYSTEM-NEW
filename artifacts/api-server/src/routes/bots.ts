@@ -15,6 +15,7 @@ function serializeBot(b: typeof botsTable.$inferSelect) {
     isActive: b.isActive,
     userCount: b.userCount,
     iconEmoji: b.iconEmoji,
+    botUrl: b.botUrl,
     createdAt: b.createdAt.toISOString(),
   };
 }

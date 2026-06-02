@@ -1235,6 +1235,10 @@ components:
           type:
             - string
             - "null"
+        botUrl:
+          type:
+            - string
+            - "null"
         createdAt:
           type: string
 
@@ -1248,6 +1252,8 @@ components:
         isActive:
           type: boolean
         iconEmoji:
+          type: string
+        botUrl:
           type: string
 
     AdminDashboard:

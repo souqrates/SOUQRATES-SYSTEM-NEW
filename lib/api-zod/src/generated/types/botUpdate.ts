@@ -11,4 +11,5 @@ export interface BotUpdate {
   description?: string;
   isActive?: boolean;
   iconEmoji?: string;
+  botUrl?: string;
 }

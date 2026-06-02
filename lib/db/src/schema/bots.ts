@@ -10,6 +10,7 @@ export const botsTable = pgTable("bots", {
   isActive: boolean("is_active").notNull().default(true),
   userCount: integer("user_count").notNull().default(0),
   iconEmoji: text("icon_emoji"),
+  botUrl: text("bot_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

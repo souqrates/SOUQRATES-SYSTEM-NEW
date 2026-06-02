@@ -303,6 +303,7 @@ export const ListBotsResponseItem = zod.object({
   "isActive": zod.boolean(),
   "userCount": zod.number(),
   "iconEmoji": zod.string().nullish(),
+  "botUrl": zod.string().nullish(),
   "createdAt": zod.string()
 })
 export const ListBotsResponse = zod.array(ListBotsResponseItem)
@@ -323,6 +324,7 @@ export const GetBotResponse = zod.object({
   "isActive": zod.boolean(),
   "userCount": zod.number(),
   "iconEmoji": zod.string().nullish(),
+  "botUrl": zod.string().nullish(),
   "createdAt": zod.string()
 })
 
@@ -338,7 +340,8 @@ export const UpdateBotBody = zod.object({
   "name": zod.string().optional(),
   "description": zod.string().optional(),
   "isActive": zod.boolean().optional(),
-  "iconEmoji": zod.string().optional()
+  "iconEmoji": zod.string().optional(),
+  "botUrl": zod.string().optional()
 })
 
 export const UpdateBotResponse = zod.object({
@@ -349,6 +352,7 @@ export const UpdateBotResponse = zod.object({
   "isActive": zod.boolean(),
   "userCount": zod.number(),
   "iconEmoji": zod.string().nullish(),
+  "botUrl": zod.string().nullish(),
   "createdAt": zod.string()
 })
 
