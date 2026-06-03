@@ -141,7 +141,7 @@ export const GetWalletBalanceResponse = zod.object({
 
 
 /**
- * @summary Deposit SKZ via TON or USDT
+ * @summary Submit a deposit for verification (pending; no immediate credit)
  */
 export const DepositWalletBody = zod.object({
   "telegramId": zod.string(),
@@ -151,7 +151,17 @@ export const DepositWalletBody = zod.object({
   "network": zod.string().optional()
 })
 
-export const DepositWalletResponse = zod.object({
+
+/**
+ * @summary Confirm a pending deposit (trusted chain-verifier webhook). Requires the DEPOSIT_WEBHOOK_SECRET header. Atomically credits the balance and runs referral commissions exactly once; idempotent on repeat calls.
+ */
+export const ConfirmDepositWebhookBody = zod.object({
+  "txHash": zod.string().describe('On-chain transaction hash of the deposit to confirm.')
+})
+
+export const ConfirmDepositWebhookResponse = zod.object({
+  "status": zod.enum(['confirmed', 'already_confirmed', 'rejected', 'not_found']),
+  "transaction": zod.union([zod.object({
   "id": zod.number(),
   "userId": zod.number(),
   "type": zod.enum(['deposit', 'withdraw', 'transfer_in', 'transfer_out', 'commission', 'refund']),
@@ -162,6 +172,7 @@ export const DepositWalletResponse = zod.object({
   "note": zod.string().nullish(),
   "refUserId": zod.number().nullish(),
   "createdAt": zod.string()
+}),zod.null()]).optional()
 })
 
 
@@ -467,6 +478,74 @@ export const ListAllTransactionsResponse = zod.object({
 
 
 /**
+ * @summary List deposits awaiting confirmation (admin)
+ */
+export const ListPendingDepositsResponseItem = zod.object({
+  "id": zod.number(),
+  "userId": zod.number(),
+  "type": zod.string(),
+  "amount": zod.number(),
+  "currency": zod.string().nullish(),
+  "txHash": zod.string().nullish(),
+  "status": zod.string(),
+  "note": zod.string().nullish(),
+  "refUserId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "telegramId": zod.string().optional(),
+  "username": zod.string().nullish()
+})
+export const ListPendingDepositsResponse = zod.array(ListPendingDepositsResponseItem)
+
+
+/**
+ * @summary Confirm and credit a pending deposit (admin)
+ */
+export const ConfirmDepositParams = zod.object({
+  "transactionId": zod.coerce.number()
+})
+
+export const ConfirmDepositResponse = zod.object({
+  "status": zod.enum(['confirmed', 'already_confirmed', 'rejected', 'not_found']),
+  "transaction": zod.union([zod.object({
+  "id": zod.number(),
+  "userId": zod.number(),
+  "type": zod.enum(['deposit', 'withdraw', 'transfer_in', 'transfer_out', 'commission', 'refund']),
+  "amount": zod.number(),
+  "currency": zod.string().nullish(),
+  "txHash": zod.string().nullish(),
+  "status": zod.enum(['pending', 'confirmed', 'failed']),
+  "note": zod.string().nullish(),
+  "refUserId": zod.number().nullish(),
+  "createdAt": zod.string()
+}),zod.null()]).optional()
+})
+
+
+/**
+ * @summary Reject a pending deposit (admin)
+ */
+export const RejectDepositParams = zod.object({
+  "transactionId": zod.coerce.number()
+})
+
+export const RejectDepositResponse = zod.object({
+  "status": zod.enum(['confirmed', 'already_confirmed', 'rejected', 'not_found']),
+  "transaction": zod.union([zod.object({
+  "id": zod.number(),
+  "userId": zod.number(),
+  "type": zod.enum(['deposit', 'withdraw', 'transfer_in', 'transfer_out', 'commission', 'refund']),
+  "amount": zod.number(),
+  "currency": zod.string().nullish(),
+  "txHash": zod.string().nullish(),
+  "status": zod.enum(['pending', 'confirmed', 'failed']),
+  "note": zod.string().nullish(),
+  "refUserId": zod.number().nullish(),
+  "createdAt": zod.string()
+}),zod.null()]).optional()
+})
+
+
+/**
  * @summary List all games
  */
 export const ListGamesQueryParams = zod.object({
@@ -599,6 +678,26 @@ export const EndGameSessionResponse = zod.object({
   "prizeAwarded": zod.number(),
   "newBalance": zod.number(),
   "message": zod.string().optional()
+})
+
+
+/**
+ * @summary Record a validated scoring event (server tallies the score)
+ */
+export const GameSessionEventParams = zod.object({
+  "sessionId": zod.coerce.number()
+})
+
+export const GameSessionEventBody = zod.object({
+  "correct": zod.boolean().describe('Whether this hit was correct (scores) or wrong (penalty).'),
+  "points": zod.number().optional().describe('Base points the engine awarded for a correct hit (pre-combo). The server clamps this to a safe range; ignored for wrong hits.')
+})
+
+export const GameSessionEventResponse = zod.object({
+  "score": zod.number(),
+  "combo": zod.number(),
+  "reachedTarget": zod.boolean(),
+  "throttled": zod.boolean().optional()
 })
 
 

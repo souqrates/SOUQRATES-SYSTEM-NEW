@@ -390,6 +390,60 @@ export interface GameSessionResult {
   message?: string;
 }
 
+export interface GameSessionEventInput {
+  /** Whether this hit was correct (scores) or wrong (penalty). */
+  correct: boolean;
+  /** Base points the engine awarded for a correct hit (pre-combo). The server clamps this to a safe range; ignored for wrong hits. */
+  points?: number;
+}
+
+export interface GameSessionEventResult {
+  score: number;
+  combo: number;
+  reachedTarget: boolean;
+  throttled?: boolean;
+}
+
+export interface PendingDeposit {
+  id: number;
+  userId: number;
+  type: string;
+  amount: number;
+  /** @nullable */
+  currency?: string | null;
+  /** @nullable */
+  txHash?: string | null;
+  status: string;
+  /** @nullable */
+  note?: string | null;
+  /** @nullable */
+  refUserId?: number | null;
+  createdAt: string;
+  telegramId?: string;
+  /** @nullable */
+  username?: string | null;
+}
+
+export type DepositConfirmResultStatus = typeof DepositConfirmResultStatus[keyof typeof DepositConfirmResultStatus];
+
+
+export const DepositConfirmResultStatus = {
+  confirmed: 'confirmed',
+  already_confirmed: 'already_confirmed',
+  rejected: 'rejected',
+  not_found: 'not_found',
+} as const;
+
+export interface DepositConfirmResult {
+  status: DepositConfirmResultStatus;
+  transaction?: Transaction | null;
+}
+
+export interface DepositWebhookInput {
+  /** On-chain transaction hash of the deposit to confirm. */
+  txHash: string;
+}
+
 export interface SessionHistoryResponse {
   sessions: GameSession[];
   total: number;

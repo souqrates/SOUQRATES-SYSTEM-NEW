@@ -1,4 +1,5 @@
 - [OpenAPI Params collision fix](openapi-params-collision.md) — mixing path+query params on same endpoint causes TS2308 collision in api-zod barrel; fix by using query-only params.
 - [Games system architecture](games-architecture.md) — 50 games seeded, 5 ticket tiers each, Canvas gameplay engine in play.tsx, full admin at /manager/games.
-- [Souqrates known financial risks](souqrates-known-risks.md) — deposit endpoint mints SKZ with no on-chain verify/replay guard; game payout trusts client score. Both need product/infra decisions.
+- [Deposit & scoring security posture](souqrates-known-risks.md) — deposits credit only on confirm (webhook/admin) + unique txHash guard; game payouts server-authoritative; residual bot risk + prod DDL note.
+- [Drizzle unique violations](drizzle-unique-violation.md) — duplicate-key→409 must check pg code 23505 on err AND err.cause (drizzle wraps), not just message regex.
 - [Souqrates auth pattern](souqrates-known-risks.md) — every sensitive API endpoint derives actor from req.auth.telegramId via requireAuth, never client body/query; preserve this on new routes.

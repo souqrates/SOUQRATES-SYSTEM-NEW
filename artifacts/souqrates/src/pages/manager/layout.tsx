@@ -1,9 +1,10 @@
 import { Switch, Route, useLocation } from "wouter";
 import { Link } from "wouter";
-import { ShieldCheck, LayoutDashboard, Users, Activity, Settings, Gamepad2, ShoppingBag, Shield, Server } from "lucide-react";
+import { ShieldCheck, LayoutDashboard, Users, Activity, Settings, Gamepad2, ShoppingBag, Shield, Server, Download } from "lucide-react";
 import Dashboard from "./dashboard";
 import UsersPanel from "./users";
 import Transactions from "./transactions";
+import DepositsAdmin from "./deposits";
 import SystemSettings from "./settings";
 import GamesAdmin from "./games";
 import SouqAdmin from "./souq";
@@ -17,6 +18,7 @@ export default function ManagerLayout() {
     { href: "/manager", label: "Dashboard", icon: LayoutDashboard },
     { href: "/manager/users", label: "Users", icon: Users },
     { href: "/manager/transactions", label: "Transactions", icon: Activity },
+    { href: "/manager/deposits", label: "Deposits", icon: Download },
     { href: "/manager/games", label: "Games", icon: Gamepad2 },
     { href: "/manager/souq", label: "Souq", icon: ShoppingBag },
     { href: "/manager/subagents", label: "Subagents", icon: Shield },
@@ -52,6 +54,7 @@ export default function ManagerLayout() {
           <Route path="/manager" component={Dashboard} />
           <Route path="/manager/users" component={UsersPanel} />
           <Route path="/manager/transactions" component={Transactions} />
+          <Route path="/manager/deposits" component={DepositsAdmin} />
           <Route path="/manager/games" component={GamesAdmin} />
           <Route path="/manager/souq" component={SouqAdmin} />
           <Route path="/manager/subagents" component={SubagentsAdmin} />

@@ -5,6 +5,7 @@ import { eq, sql, desc, and } from "drizzle-orm";
 import { BanUserBody, SendBroadcastBody, ListAllTransactionsQueryParams } from "@workspace/api-zod";
 import { testSentry } from "../lib/monitoring";
 import { testRedis, testQStash } from "../lib/cache";
+import { confirmDeposit, rejectDeposit } from "../lib/depositConfirm";
 
 const router = Router();
 
@@ -263,6 +264,62 @@ router.get("/subagent-applications", async (req, res) => {
     })));
   } catch (err) {
     req.log.error({ err }, "Error listing subagent applications");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// GET /api/admin/deposits/pending — deposits awaiting confirmation
+router.get("/deposits/pending", async (req, res) => {
+  try {
+    const rows = await db
+      .select({
+        tx: transactionsTable,
+        telegramId: usersTable.telegramId,
+        username: usersTable.username,
+      })
+      .from(transactionsTable)
+      .innerJoin(usersTable, eq(transactionsTable.userId, usersTable.id))
+      .where(and(eq(transactionsTable.type, "deposit"), eq(transactionsTable.status, "pending")))
+      .orderBy(desc(transactionsTable.createdAt))
+      .limit(100);
+    res.json(
+      rows.map((r) => ({
+        ...serializeTx(r.tx),
+        telegramId: r.telegramId,
+        username: r.username,
+      }))
+    );
+  } catch (err) {
+    req.log.error({ err }, "Error listing pending deposits");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /api/admin/deposits/:id/confirm — manually confirm + credit a deposit
+router.post("/deposits/:id/confirm", async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid transaction ID" }); return; }
+  try {
+    const result = await confirmDeposit({ transactionId: id });
+    if (result.status === "not_found") { res.status(404).json({ error: "Deposit not found" }); return; }
+    res.json({ status: result.status, transaction: serializeTx(result.tx) });
+  } catch (err) {
+    req.log.error({ err }, "Error confirming deposit (admin)");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /api/admin/deposits/:id/reject — mark a pending deposit failed
+router.post("/deposits/:id/reject", async (req, res) => {
+  const id = parseInt(req.params.id);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid transaction ID" }); return; }
+  try {
+    const result = await rejectDeposit({ transactionId: id });
+    if (result.status === "not_found") { res.status(404).json({ error: "Deposit not found" }); return; }
+    if (result.status === "already_confirmed") { res.status(409).json({ error: "Deposit already confirmed" }); return; }
+    res.json({ status: result.status, transaction: result.tx ? serializeTx(result.tx) : null });
+  } catch (err) {
+    req.log.error({ err }, "Error rejecting deposit (admin)");
     res.status(500).json({ error: "Internal server error" });
   }
 });

@@ -15,12 +15,22 @@ import {
   FetchLeaderboardQueryParams,
   UpdateGameTicketParams,
   UpdateGameTicketBody,
+  GameSessionEventParams,
+  GameSessionEventBody,
 } from "@workspace/api-zod";
 
 const router = Router();
 
 /** Thrown when a game session is ended more than once (concurrency guard). */
 class SessionSettledError extends Error {}
+
+// Server-authoritative scoring guards.
+/** Grace window (s) added to the time limit to absorb client/network latency. */
+const EVENT_GRACE_SECONDS = 5;
+/** Minimum gap (ms) between accepted scoring events — blocks scripted spam. */
+const MIN_EVENT_INTERVAL_MS = 20;
+/** Max bonus a single correct hit may add over the ticket's base hit value. */
+const MAX_CORRECT_BONUS = 12;
 
 function serializeGame(g: typeof skillzGamesTable.$inferSelect) {
   return {
@@ -331,7 +341,8 @@ router.post("/session/:sessionId/end", requireAuth, async (req, res) => {
       return;
     }
     const { sessionId } = params.data;
-    const { finalScore } = body.data;
+    // body.finalScore is intentionally ignored — the score is the one the
+    // server tallied from validated hit events, never what the client reports.
 
     const session = await db
       .select()
@@ -360,50 +371,64 @@ router.post("/session/:sessionId/end", requireAuth, async (req, res) => {
       return;
     }
 
-    // Win is determined server-side from the reported score against the
-    // session's target — the client cannot claim a win without the score.
     const prizeAmount = parseFloat(session[0].prize);
-    const won = finalScore >= session[0].targetScore;
-    const status = won ? "won" : "lost";
 
-    const newBalance = await db.transaction(async (tx) => {
-      // Settle the session atomically. The status guard prevents a session
-      // from being ended (and paid out) twice under concurrent requests.
+    const outcome = await db.transaction(async (tx) => {
+      // Read the authoritative, server-tallied score inside the transaction and
+      // settle atomically. The status guard prevents a session from being ended
+      // (and paid out) twice under concurrent requests.
+      const [live] = await tx
+        .select({
+          score: gameSessionsTable.score,
+          status: gameSessionsTable.status,
+          targetScore: gameSessionsTable.targetScore,
+          userId: gameSessionsTable.userId,
+        })
+        .from(gameSessionsTable)
+        .where(eq(gameSessionsTable.id, sessionId))
+        .limit(1);
+      if (!live || live.status !== "active") throw new SessionSettledError();
+
+      const serverScore = live.score;
+      const didWin = serverScore >= live.targetScore;
+
       const settled = await tx
         .update(gameSessionsTable)
-        .set({ status, score: finalScore, endedAt: new Date() })
+        .set({ status: didWin ? "won" : "lost", endedAt: new Date() })
         .where(and(eq(gameSessionsTable.id, sessionId), eq(gameSessionsTable.status, "active")))
         .returning({ id: gameSessionsTable.id });
       if (settled.length === 0) throw new SessionSettledError();
 
-      if (won) {
+      let balance: number;
+      if (didWin) {
         const [credited] = await tx
           .update(usersTable)
           .set({
             skzBalance: sql`${usersTable.skzBalance} + ${prizeAmount}`,
             totalEarned: sql`${usersTable.totalEarned} + ${prizeAmount}`,
           })
-          .where(eq(usersTable.id, session[0].userId))
+          .where(eq(usersTable.id, live.userId))
           .returning({ balance: usersTable.skzBalance });
-        return parseFloat(credited.balance);
+        balance = parseFloat(credited.balance);
+      } else {
+        const [current] = await tx
+          .select({ balance: usersTable.skzBalance })
+          .from(usersTable)
+          .where(eq(usersTable.id, live.userId))
+          .limit(1);
+        balance = parseFloat(current.balance);
       }
-
-      const [current] = await tx
-        .select({ balance: usersTable.skzBalance })
-        .from(usersTable)
-        .where(eq(usersTable.id, session[0].userId))
-        .limit(1);
-      return parseFloat(current.balance);
+      return { won: didWin, serverScore, newBalance: balance };
     });
 
     res.json({
       sessionId,
-      won,
-      finalScore,
+      won: outcome.won,
+      finalScore: outcome.serverScore,
       targetScore: session[0].targetScore,
-      prizeAwarded: won ? prizeAmount : 0,
-      newBalance,
-      message: won
+      prizeAwarded: outcome.won ? prizeAmount : 0,
+      newBalance: outcome.newBalance,
+      message: outcome.won
         ? `You won ${prizeAmount.toFixed(2)} SKZ!`
         : `Better luck next time! Target was ${session[0].targetScore} points.`,
     });
@@ -413,6 +438,114 @@ router.post("/session/:sessionId/end", requireAuth, async (req, res) => {
       return;
     }
     req.log.error({ err }, "endGameSession failed");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /api/games/session/:sessionId/event — record one validated hit event.
+// This is the ONLY way a session's score grows; the score is tallied entirely
+// server-side from these events so the client can never claim an arbitrary
+// final score. Each event is rate-limited and must fall within the time window.
+router.post("/session/:sessionId/event", requireAuth, async (req, res) => {
+  const params = GameSessionEventParams.safeParse(req.params);
+  const body = GameSessionEventBody.safeParse(req.body);
+  if (!params.success || !body.success) {
+    res.status(400).json({ error: "Invalid input" });
+    return;
+  }
+  const { sessionId } = params.data;
+  const { correct, points } = body.data;
+
+  try {
+    const [authUser] = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.telegramId, req.auth!.telegramId))
+      .limit(1);
+    if (!authUser) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+
+    const result = await db.transaction(async (tx) => {
+      // Row lock: serialize concurrent events for the same session so the
+      // throttle window and combo/score math are always evaluated against
+      // committed state. Without this, racing requests read stale
+      // score/combo/lastEventAt and lost updates inflate or corrupt the tally.
+      const [s] = await tx
+        .select()
+        .from(gameSessionsTable)
+        .where(eq(gameSessionsTable.id, sessionId))
+        .limit(1)
+        .for("update");
+      if (!s) return { kind: "not_found" as const };
+      if (s.userId !== authUser.id) return { kind: "forbidden" as const };
+      if (s.status !== "active") return { kind: "inactive" as const };
+
+      const now = Date.now();
+      const startedAt = s.startedAt.getTime();
+      // Time window: reject events past the time limit (+ small grace for latency).
+      if (now > startedAt + (s.timeLimitSeconds + EVENT_GRACE_SECONDS) * 1000) {
+        return { kind: "expired" as const, score: s.score };
+      }
+      // Rate cap: reject implausibly fast bursts. Generous enough for human
+      // play; blocks scripted spam. Throttled events are no-ops, not errors.
+      if (s.lastEventAt && now - s.lastEventAt.getTime() < MIN_EVENT_INTERVAL_MS) {
+        return { kind: "throttled" as const, score: s.score, combo: s.combo };
+      }
+
+      // Server-side scoring math (mirrors the client's combo feel). Per-hit
+      // value is clamped so a tampered `points` can't inflate a single event.
+      let combo = s.combo;
+      let delta: number;
+      if (correct) {
+        combo += 1;
+        const base = Math.max(1, Math.min(points ?? s.correctHitValue, s.correctHitValue + MAX_CORRECT_BONUS));
+        const multiplier = Math.min(4, 1 + Math.floor(combo / 4) * 0.5);
+        delta = Math.round(base * multiplier);
+      } else {
+        combo = 0;
+        delta = -s.wrongHitPenalty;
+      }
+      const newScore = Math.max(0, s.score + delta);
+
+      const [updated] = await tx
+        .update(gameSessionsTable)
+        .set({ score: newScore, combo, lastEventAt: new Date(now) })
+        .where(and(eq(gameSessionsTable.id, sessionId), eq(gameSessionsTable.status, "active")))
+        .returning({ score: gameSessionsTable.score, combo: gameSessionsTable.combo });
+      if (!updated) return { kind: "inactive" as const };
+
+      return {
+        kind: "ok" as const,
+        score: updated.score,
+        combo: updated.combo,
+        reachedTarget: updated.score >= s.targetScore,
+      };
+    });
+
+    switch (result.kind) {
+      case "not_found":
+        res.status(404).json({ error: "Session not found" });
+        return;
+      case "forbidden":
+        res.status(403).json({ error: "Not your session" });
+        return;
+      case "inactive":
+        res.status(409).json({ error: "Session is not active" });
+        return;
+      case "expired":
+        res.status(409).json({ error: "Session time limit exceeded", score: result.score });
+        return;
+      case "throttled":
+        res.json({ score: result.score, combo: result.combo, reachedTarget: false, throttled: true });
+        return;
+      default:
+        res.json({ score: result.score, combo: result.combo, reachedTarget: result.reachedTarget, throttled: false });
+        return;
+    }
+  } catch (err) {
+    req.log.error({ err }, "gameSessionEvent failed");
     res.status(500).json({ error: "Internal server error" });
   }
 });

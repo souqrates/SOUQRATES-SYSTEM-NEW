@@ -1,36 +1,48 @@
 ---
-name: Souqrates known financial risks
-description: Two accepted/unresolved money-loss vectors in the Souqrates API that look fine in code but need product/infra decisions
+name: Souqrates deposit & scoring security posture
+description: Current state of the two money-loss vectors in the Souqrates API (deposits, game payouts) — what is now enforced and what residual risk remains
 ---
 
-# Souqrates known financial risks
+# Souqrates deposit & scoring security posture
 
-The auth/IDOR hardening pass closed all client-spoofed-identity holes (every sensitive
-endpoint now uses `requireAuth` and derives the actor from `req.auth.telegramId`, never
-from client body/query). Two deeper money-loss vectors remain that are NOT visible as bugs
-in the code — they are design decisions awaiting an owner call:
+Both historical money-loss vectors have been hardened. This file records the
+**invariants you must not regress** and the **residual risk** that is accepted.
 
-## 1. Deposit minting (POST /api/wallet/deposit)
-Deposits are written `status: "confirmed"` and credit SKZ immediately from the client
-payload (`amount/currency/txHash`) with **no on-chain verification and no txHash
-uniqueness/replay guard**. Any authenticated user can mint unlimited SKZ.
+## 1. Deposits — credit only on confirmation
+`POST /wallet/deposit` creates a `status: "pending"` row and does **NOT** credit
+SKZ or run commissions. Crediting happens exactly once, atomically, only via the
+shared confirm logic (`lib/depositConfirm.ts`), reached through two paths:
+- the secured webhook `POST /wallet/deposit/confirm` (DEPOSIT_WEBHOOK_SECRET header,
+  timing-safe compare; returns 503 until the secret is set), or
+- admin manual confirm/reject (requireAdmin).
+Replay/double-submit is blocked by a **partial unique index on `transactions.tx_hash`
+(where not null)**; a duplicate submit returns 409.
 
-**Why unresolved:** real fix needs an off-chain verifier (TON/USDT webhook or chain
-indexer) + unique `txHash` per network, only crediting on verified confirmation. That is
-new infrastructure and a product decision, not a hardening edit.
+**Invariant — do not regress:** never re-add immediate credit to the deposit POST.
+The deposit endpoint records intent only; money moves on confirm.
 
-**How to apply:** if asked to "secure deposits", do not just add atomicity — the credit
-itself is unverified. Propose the verifier pipeline + unique txHash constraint first.
+## 2. Game payouts — server-authoritative scoring
+Score is tallied server-side from `POST /games/session/:id/event` (combo+score math
+lives on the server, mirrors client feel). `POST /games/session/:id/end` **ignores the
+client-reported finalScore/won** and decides `won = session.score >= targetScore`.
+End is idempotent (no double payout). Event handler enforces ownership, active status,
+a time window (startedAt + timeLimit + grace), a rate cap (MIN_EVENT_INTERVAL_MS), and
+clamps a tampered `points` to `[1, correctHitValue + bonus]`.
 
-## 2. Game payout trusts client score (POST /api/games/session/:id/end)
-Win is now server-derived (`won = finalScore >= session.targetScore`) and settlement is
-atomic + double-settle-guarded + ownership-checked. But `finalScore` is still reported by
-the client (canvas game runs client-side), and seeded prizes exceed entry fees, so a
-cheater can post an inflated score and farm net-positive SKZ.
+**Concurrency:** the event transaction takes a row lock (`SELECT ... FOR UPDATE`) on the
+session before reading/writing score/combo/lastEventAt. Without it, concurrent events
+read stale state and the throttle/combo math suffers lost updates. The lock is what makes
+the rate cap effective against parallel bursts — keep it.
 
-**Why unresolved:** eliminating this needs server-authoritative scoring (deterministic
-server simulation / signed event proofs / anti-cheat), or making `prize <= entry`. Both
-are product/economics decisions.
+**Residual risk (accepted):** the event endpoint still trusts that a reported `correct`
+hit actually happened — a sophisticated bot can POST well-paced fake `correct:true` events
+and farm prizes (prizes exceed entry fees). Eliminating this needs signed/replayable event
+proofs or a server-side deterministic simulation. Do not claim payouts are bot-proof.
+The throttle may also slightly undercount continuous-distance game engines (events outside
+the min interval are dropped as no-ops).
 
-**How to apply:** treat client-reported score as untrusted. Don't claim payouts are
-"secure" just because ownership + win-threshold checks exist.
+## Deploy note
+Prod runs on Contabo (drizzle `push` is dev-only). The schema changes here — the
+`transactions.tx_hash` partial unique index and `game_sessions.combo` / `last_event_at`
+columns — must be applied manually to the prod DB before rollout, and DEPOSIT_WEBHOOK_SECRET
+set in prod, or confirm-via-webhook stays 503.

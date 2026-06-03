@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useParams } from "wouter";
-import { useGetGame, useEndGameSession } from "@workspace/api-client-react";
+import { useGetGame, useEndGameSession, useGameSessionEvent } from "@workspace/api-client-react";
 import { X } from "lucide-react";
 
 type GameState = "countdown" | "playing" | "ended";
@@ -62,6 +62,8 @@ export default function Play() {
   const [, navigate] = useLocation();
   const { data: game } = useGetGame(gameId);
   const endSession = useEndGameSession();
+  const sessionEvent = useGameSessionEvent();
+  const eventPromisesRef = useRef<Promise<unknown>[]>([]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const scoreRef = useRef(0);
@@ -124,6 +126,12 @@ export default function Play() {
     const won = finalScore >= (config?.targetScore ?? 999);
     if (won) playWin(); else playLose();
     try {
+      // Flush any in-flight scoring events so the server tally is complete
+      // before we read the authoritative final score.
+      if (eventPromisesRef.current.length > 0) {
+        await Promise.allSettled(eventPromisesRef.current);
+        eventPromisesRef.current = [];
+      }
       const result = await endSession.mutateAsync({ sessionId, data: { finalScore, won } });
       setSessionResult({ won: result.won, prize: result.prizeAwarded, finalScore: result.finalScore, targetScore: result.targetScore });
     } catch {
@@ -153,6 +161,17 @@ export default function Play() {
     const engine = getEngine(gameSlug, gameCategory);
 
     function updateScore(delta: number) {
+      // Capture the base (pre-combo) magnitude so the server can re-derive the
+      // authoritative score with its own combo multiplier. The server is the
+      // source of truth for payout; this local math is optimistic UI only.
+      const correct = delta > 0;
+      const basePoints = Math.round(Math.abs(delta));
+      if (!gameEndedRef.current) {
+        const p = sessionEvent
+          .mutateAsync({ sessionId, data: { correct, points: basePoints } })
+          .catch(() => {});
+        eventPromisesRef.current.push(p);
+      }
       if (delta > 0) {
         comboRef.current++;
         setCombo(comboRef.current);
@@ -983,6 +1002,7 @@ export default function Play() {
       const WALL_COLORS = ["#a855f7", "#06b6d4", "#f97316", "#ec4899", "#10b981"];
       let flipFlash = 0;
       let dist = 0;
+      let distScore = 0;
 
       function flip() {
         gravDir *= -1; ballVY = -ballVY * 0.5 + gravDir * (-2);
@@ -1093,10 +1113,15 @@ export default function Play() {
           }
         }
 
-        // Distance score
+        // Distance score — route incremental gains through updateScore so the
+        // server tally (authoritative for payout) stays in sync.
         if (dist % 8 === 0) {
-          scoreRef.current = Math.max(scoreRef.current, Math.floor(dist / 8));
-          setScore(scoreRef.current);
+          const milestone = Math.floor(dist / 8);
+          if (milestone > distScore) {
+            const inc = milestone - distScore;
+            distScore = milestone;
+            updateScore(inc);
+          }
         }
 
         if (flashTimer > 0) {

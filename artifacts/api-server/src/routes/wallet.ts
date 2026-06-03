@@ -2,14 +2,37 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { usersTable, transactionsTable, settingsTable } from "@workspace/db";
 import { eq, sql, and } from "drizzle-orm";
-import { processReferralCommissions } from "../lib/referralCommissions";
 import { requireAuth } from "../lib/auth";
+import { confirmDeposit } from "../lib/depositConfirm";
 import { DepositWalletBody, TransferSkzBody, ListTransactionsQueryParams } from "@workspace/api-zod";
+import { timingSafeEqual } from "node:crypto";
 
 const router = Router();
 
 /** Thrown inside a transaction when the sender lacks sufficient balance. */
 class InsufficientFundsError extends Error {}
+
+/**
+ * Detect a Postgres unique-constraint violation (SQLSTATE 23505). The driver
+ * sets `code` on the error, but drizzle may wrap it and move the original to
+ * `cause`, so check both — and fall back to the constraint name in the message.
+ */
+function isUniqueViolation(err: unknown): boolean {
+  const e = err as { code?: string; message?: string; cause?: { code?: string; message?: string } } | null;
+  if (!e) return false;
+  if (e.code === "23505" || e.cause?.code === "23505") return true;
+  const msg = `${e.message ?? ""} ${e.cause?.message ?? ""}`;
+  return /transactions_tx_hash_unique|duplicate key/i.test(msg);
+}
+
+/** Constant-time comparison of the webhook secret to avoid timing oracles. */
+function secretMatches(provided: string | undefined, expected: string): boolean {
+  if (!provided) return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
 
 function serializeTx(t: typeof transactionsTable.$inferSelect) {
   return {
@@ -77,6 +100,15 @@ router.post("/deposit", requireAuth, async (req, res) => {
   // Actor is derived from the authenticated identity, never the client body.
   const telegramId = req.auth!.telegramId;
 
+  if (amount <= 0) {
+    res.status(400).json({ error: "Amount must be positive" });
+    return;
+  }
+  if (!txHash || !txHash.trim()) {
+    res.status(400).json({ error: "On-chain transaction hash is required" });
+    return;
+  }
+
   try {
     const users = await db.select().from(usersTable).where(eq(usersTable.telegramId, telegramId)).limit(1);
     if (users.length === 0) {
@@ -85,38 +117,75 @@ router.post("/deposit", requireAuth, async (req, res) => {
     }
     const user = users[0];
 
-    const inserted = await db.transaction(async (tx) => {
-      // Get conversion rate
-      const settings = await tx.select().from(settingsTable).limit(1);
-      const rate = settings.length > 0
-        ? (currency === "TON" ? parseFloat(settings[0].skzPerTon) : parseFloat(settings[0].skzPerUsdt))
-        : 100;
-      const skzAmount = amount * rate;
+    // Conversion rate snapshotted at request time; the SKZ amount is recorded
+    // on the PENDING row and credited verbatim only once the deposit is
+    // independently confirmed (webhook or admin). No balance change here.
+    const settings = await db.select().from(settingsTable).limit(1);
+    const rate = settings.length > 0
+      ? (currency === "TON" ? parseFloat(settings[0].skzPerTon) : parseFloat(settings[0].skzPerUsdt))
+      : 100;
+    const skzAmount = amount * rate;
 
-      const [txRow] = await tx.insert(transactionsTable).values({
+    let txRow;
+    try {
+      [txRow] = await db.insert(transactionsTable).values({
         userId: user.id,
         type: "deposit",
         amount: skzAmount.toString(),
         currency,
-        txHash,
-        status: "confirmed",
+        txHash: txHash.trim(),
+        status: "pending",
         note: `Deposit ${amount} ${currency} via ${network ?? "blockchain"}`,
       }).returning();
+    } catch (err) {
+      // Unique partial index on tx_hash → replay/duplicate submission. The
+      // pg unique-violation code (23505) may sit on the error itself or, when
+      // drizzle wraps the driver error, on its `cause`.
+      if (isUniqueViolation(err)) {
+        res.status(409).json({ error: "This transaction hash has already been submitted" });
+        return;
+      }
+      throw err;
+    }
 
-      // Credit balance
-      await tx.update(usersTable)
-        .set({ skzBalance: sql`${usersTable.skzBalance} + ${skzAmount}` })
-        .where(eq(usersTable.id, user.id));
-
-      // Process referral commissions in the same transaction
-      await processReferralCommissions(tx, user.id, skzAmount, settings.length > 0 ? settings[0] : null);
-
-      return txRow;
-    });
-
-    res.json(serializeTx(inserted));
+    res.status(202).json(serializeTx(txRow));
   } catch (err) {
     req.log.error({ err }, "Error processing deposit");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /api/wallet/deposit/confirm — trusted webhook (chain indexer / verifier).
+// Authenticated by the shared DEPOSIT_WEBHOOK_SECRET header, NOT a user session.
+// This is the only path (besides admin) that actually credits a deposit.
+router.post("/deposit/confirm", async (req, res) => {
+  const expected = process.env.DEPOSIT_WEBHOOK_SECRET;
+  if (!expected) {
+    req.log.error("DEPOSIT_WEBHOOK_SECRET is not configured; rejecting confirm");
+    res.status(503).json({ error: "Deposit confirmation is not configured" });
+    return;
+  }
+  const provided = req.header("x-webhook-secret") ?? undefined;
+  if (!secretMatches(provided, expected)) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const txHash = typeof req.body?.txHash === "string" ? req.body.txHash.trim() : "";
+  if (!txHash) {
+    res.status(400).json({ error: "txHash is required" });
+    return;
+  }
+
+  try {
+    const result = await confirmDeposit({ txHash });
+    if (result.status === "not_found") {
+      res.status(404).json({ error: "No matching deposit found" });
+      return;
+    }
+    res.json({ status: result.status, transaction: serializeTx(result.tx) });
+  } catch (err) {
+    req.log.error({ err }, "Error confirming deposit via webhook");
     res.status(500).json({ error: "Internal server error" });
   }
 });

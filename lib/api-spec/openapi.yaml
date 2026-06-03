@@ -155,7 +155,7 @@ paths:
       operationId: depositWallet
       tags:
         - wallet
-      summary: Deposit SKZ via TON or USDT
+      summary: Submit a deposit for verification (pending; no immediate credit)
       requestBody:
         required: true
         content:
@@ -163,12 +163,45 @@ paths:
             schema:
               $ref: "#/components/schemas/DepositInput"
       responses:
-        "200":
-          description: Transaction created
+        "202":
+          description: >-
+            Deposit recorded as pending. No balance change or commissions occur
+            until the deposit is confirmed by the verification webhook or an admin.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Transaction"
+        "409":
+          description: A deposit with this transaction hash has already been submitted
+
+  /wallet/deposit/confirm:
+    post:
+      operationId: confirmDepositWebhook
+      tags:
+        - wallet
+      summary: >-
+        Confirm a pending deposit (trusted chain-verifier webhook). Requires the
+        DEPOSIT_WEBHOOK_SECRET header. Atomically credits the balance and runs
+        referral commissions exactly once; idempotent on repeat calls.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DepositWebhookInput"
+      responses:
+        "200":
+          description: Deposit confirmed (or already confirmed)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DepositConfirmResult"
+        "401":
+          description: Missing or invalid webhook secret
+        "404":
+          description: No matching pending deposit found
+        "503":
+          description: Webhook is not configured (DEPOSIT_WEBHOOK_SECRET unset)
 
   /wallet/transfer:
     post:
@@ -444,6 +477,62 @@ paths:
               schema:
                 $ref: "#/components/schemas/TransactionListResponse"
 
+  /admin/deposits/pending:
+    get:
+      operationId: listPendingDeposits
+      tags:
+        - admin
+      summary: List deposits awaiting confirmation (admin)
+      responses:
+        "200":
+          description: Pending deposits
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PendingDeposit"
+
+  /admin/deposits/{transactionId}/confirm:
+    post:
+      operationId: confirmDeposit
+      tags:
+        - admin
+      summary: Confirm and credit a pending deposit (admin)
+      parameters:
+        - name: transactionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deposit confirmation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DepositConfirmResult"
+
+  /admin/deposits/{transactionId}/reject:
+    post:
+      operationId: rejectDeposit
+      tags:
+        - admin
+      summary: Reject a pending deposit (admin)
+      parameters:
+        - name: transactionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deposit rejection result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DepositConfirmResult"
+
   /games:
     get:
       operationId: listGames
@@ -558,6 +647,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/GameSessionResult"
+
+  /games/session/{sessionId}/event:
+    post:
+      operationId: gameSessionEvent
+      tags:
+        - games
+      summary: Record a validated scoring event (server tallies the score)
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GameSessionEventInput"
+      responses:
+        "200":
+          description: Current server-side score after the event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameSessionEventResult"
 
   /games/session/history:
     get:
@@ -1793,6 +1908,108 @@ components:
           type: number
         message:
           type: string
+
+    GameSessionEventInput:
+      type: object
+      required:
+        - correct
+      properties:
+        correct:
+          type: boolean
+          description: Whether this hit was correct (scores) or wrong (penalty).
+        points:
+          type: integer
+          description: >-
+            Base points the engine awarded for a correct hit (pre-combo). The
+            server clamps this to a safe range; ignored for wrong hits.
+      additionalProperties: false
+
+    GameSessionEventResult:
+      type: object
+      required:
+        - score
+        - combo
+        - reachedTarget
+      properties:
+        score:
+          type: integer
+        combo:
+          type: integer
+        reachedTarget:
+          type: boolean
+        throttled:
+          type: boolean
+
+    PendingDeposit:
+      type: object
+      required:
+        - id
+        - userId
+        - type
+        - amount
+        - status
+        - createdAt
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        type:
+          type: string
+        amount:
+          type: number
+        currency:
+          type:
+            - string
+            - "null"
+        txHash:
+          type:
+            - string
+            - "null"
+        status:
+          type: string
+        note:
+          type:
+            - string
+            - "null"
+        refUserId:
+          type:
+            - integer
+            - "null"
+        createdAt:
+          type: string
+        telegramId:
+          type: string
+        username:
+          type:
+            - string
+            - "null"
+
+    DepositConfirmResult:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - confirmed
+            - already_confirmed
+            - rejected
+            - not_found
+        transaction:
+          oneOf:
+            - $ref: "#/components/schemas/Transaction"
+            - type: "null"
+
+    DepositWebhookInput:
+      type: object
+      required:
+        - txHash
+      properties:
+        txHash:
+          type: string
+          description: On-chain transaction hash of the deposit to confirm.
 
     SessionHistoryResponse:
       type: object

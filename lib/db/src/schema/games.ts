@@ -42,6 +42,10 @@ export const gameSessionsTable = pgTable("game_sessions", {
   ticketId: integer("ticket_id").notNull().references(() => gameTicketsTable.id),
   status: text("status").notNull().default("active"),
   score: integer("score").notNull().default(0),
+  // Server-authoritative scoring state. Score is tallied from validated hit
+  // events; combo persists the streak multiplier; lastEventAt rate-limits events.
+  combo: integer("combo").notNull().default(0),
+  lastEventAt: timestamp("last_event_at", { withTimezone: true }),
   entryPrice: numeric("entry_price", { precision: 18, scale: 6 }).notNull(),
   prize: numeric("prize", { precision: 18, scale: 6 }).notNull(),
   targetScore: integer("target_score").notNull(),

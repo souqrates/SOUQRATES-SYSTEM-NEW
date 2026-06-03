@@ -26,23 +26,41 @@ export default function Wallet() {
   const depositMut = useDepositWallet();
   const [depositAmount, setDepositAmount] = useState("");
   const [depositCurrency, setDepositCurrency] = useState<"TON" | "USDT">("TON");
+  const [txHash, setTxHash] = useState("");
 
   const handleDeposit = () => {
-    if (!depositAmount || isNaN(Number(depositAmount))) return;
+    if (!depositAmount || isNaN(Number(depositAmount)) || Number(depositAmount) <= 0) return;
+    if (!txHash.trim()) {
+      toast({ title: "Transaction Hash Required", description: "Paste the on-chain transaction hash of your payment", variant: "destructive" });
+      return;
+    }
     depositMut.mutate({
       data: {
         telegramId,
         amount: Number(depositAmount),
         currency: depositCurrency,
-        txHash: "simulated_tx_" + Date.now(),
+        txHash: txHash.trim(),
       }
     }, {
       onSuccess: () => {
-        toast({ title: "Deposit Initiated", description: `Simulated deposit of ${depositAmount} ${depositCurrency}` });
+        toast({
+          title: "Deposit Submitted",
+          description: "Pending verification. SKZ will be credited once the payment is confirmed on-chain.",
+        });
         setDepositAmount("");
-        queryClient.invalidateQueries({ queryKey: getGetWalletBalanceQueryKey({ telegram_id: telegramId }) });
+        setTxHash("");
         queryClient.invalidateQueries({ queryKey: getListTransactionsQueryKey({ telegram_id: telegramId, limit: 20 }) });
-      }
+      },
+      onError: (err) => {
+        const status = (err as { status?: number } | undefined)?.status;
+        toast({
+          title: "Deposit Failed",
+          description: status === 409
+            ? "This transaction hash has already been submitted."
+            : "Could not submit deposit. Check the details and try again.",
+          variant: "destructive",
+        });
+      },
     });
   };
 
@@ -86,7 +104,7 @@ export default function Wallet() {
           <CardTitle className="font-orbitron text-lg flex items-center">
             <Download className="h-5 w-5 mr-2 text-green-500" /> Add Funds
           </CardTitle>
-          <CardDescription>Deposit TON or USDT to receive SKZ</CardDescription>
+          <CardDescription>Send TON or USDT, then submit the transaction hash to receive SKZ after verification</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex gap-4">
@@ -113,12 +131,28 @@ export default function Wallet() {
               </Select>
             </div>
           </div>
+          <div className="space-y-2">
+            <label className="text-xs font-orbitron text-muted-foreground">TRANSACTION HASH</label>
+            <Input
+              type="text"
+              placeholder="Paste the on-chain transaction hash"
+              value={txHash}
+              onChange={e => setTxHash(e.target.value)}
+              className="font-mono text-sm bg-background"
+            />
+          </div>
+          <div className="flex items-start gap-2 rounded-md bg-yellow-500/10 border border-yellow-500/20 px-3 py-2">
+            <Clock className="h-4 w-4 text-yellow-500 mt-0.5 shrink-0" />
+            <p className="text-xs text-muted-foreground font-orbitron leading-relaxed">
+              Deposits are credited only after the payment is verified on-chain. Your balance updates once an admin or the network confirms the transaction.
+            </p>
+          </div>
           <Button
             className="w-full font-orbitron tracking-wider"
             onClick={handleDeposit}
-            disabled={depositMut.isPending || !depositAmount}
+            disabled={depositMut.isPending || !depositAmount || !txHash.trim()}
           >
-            {depositMut.isPending ? "PROCESSING..." : "CONFIRM DEPOSIT"}
+            {depositMut.isPending ? "SUBMITTING..." : "SUBMIT DEPOSIT"}
           </Button>
         </CardContent>
       </Card>

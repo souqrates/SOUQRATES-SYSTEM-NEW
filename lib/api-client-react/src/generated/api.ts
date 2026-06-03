@@ -27,12 +27,16 @@ import type {
   BroadcastInput,
   BroadcastResult,
   DeleteSouqProduct200,
+  DepositConfirmResult,
   DepositInput,
+  DepositWebhookInput,
   EndSessionInput,
   FetchLeaderboardParams,
   GameConfigUpdate,
   GameLeaderboardEntry,
   GameSession,
+  GameSessionEventInput,
+  GameSessionEventResult,
   GameSessionResult,
   GameTicket,
   GamesStats,
@@ -52,6 +56,7 @@ import type {
   ListSubagentTransfersParams,
   ListTransactionsParams,
   ListUsersParams,
+  PendingDeposit,
   ReferralEarnings,
   ReferralInfo,
   SessionHistoryResponse,
@@ -581,7 +586,7 @@ export const getDepositWalletUrl = () => {
 }
 
 /**
- * @summary Deposit SKZ via TON or USDT
+ * @summary Submit a deposit for verification (pending; no immediate credit)
  */
 export const depositWallet = async (depositInput: DepositInput, options?: RequestInit): Promise<Transaction> => {
 
@@ -598,7 +603,7 @@ export const depositWallet = async (depositInput: DepositInput, options?: Reques
 
 
 
-export const getDepositWalletMutationOptions = <TError = ErrorType<unknown>,
+export const getDepositWalletMutationOptions = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof depositWallet>>, TError,{data: BodyType<DepositInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof depositWallet>>, TError,{data: BodyType<DepositInput>}, TContext> => {
 
@@ -627,12 +632,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type DepositWalletMutationResult = NonNullable<Awaited<ReturnType<typeof depositWallet>>>
     export type DepositWalletMutationBody = BodyType<DepositInput>
-    export type DepositWalletMutationError = ErrorType<unknown>
+    export type DepositWalletMutationError = ErrorType<void>
 
     /**
- * @summary Deposit SKZ via TON or USDT
+ * @summary Submit a deposit for verification (pending; no immediate credit)
  */
-export const useDepositWallet = <TError = ErrorType<unknown>,
+export const useDepositWallet = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof depositWallet>>, TError,{data: BodyType<DepositInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof depositWallet>>,
@@ -641,6 +646,77 @@ export const useDepositWallet = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDepositWalletMutationOptions(options));
+    }
+
+export const getConfirmDepositWebhookUrl = () => {
+
+
+
+
+  return `/api/wallet/deposit/confirm`
+}
+
+/**
+ * @summary Confirm a pending deposit (trusted chain-verifier webhook). Requires the DEPOSIT_WEBHOOK_SECRET header. Atomically credits the balance and runs referral commissions exactly once; idempotent on repeat calls.
+ */
+export const confirmDepositWebhook = async (depositWebhookInput: DepositWebhookInput, options?: RequestInit): Promise<DepositConfirmResult> => {
+
+  return customFetch<DepositConfirmResult>(getConfirmDepositWebhookUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      depositWebhookInput,)
+  }
+);}
+
+
+
+
+export const getConfirmDepositWebhookMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmDepositWebhook>>, TError,{data: BodyType<DepositWebhookInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof confirmDepositWebhook>>, TError,{data: BodyType<DepositWebhookInput>}, TContext> => {
+
+const mutationKey = ['confirmDepositWebhook'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof confirmDepositWebhook>>, {data: BodyType<DepositWebhookInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  confirmDepositWebhook(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConfirmDepositWebhookMutationResult = NonNullable<Awaited<ReturnType<typeof confirmDepositWebhook>>>
+    export type ConfirmDepositWebhookMutationBody = BodyType<DepositWebhookInput>
+    export type ConfirmDepositWebhookMutationError = ErrorType<void>
+
+    /**
+ * @summary Confirm a pending deposit (trusted chain-verifier webhook). Requires the DEPOSIT_WEBHOOK_SECRET header. Atomically credits the balance and runs referral commissions exactly once; idempotent on repeat calls.
+ */
+export const useConfirmDepositWebhook = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmDepositWebhook>>, TError,{data: BodyType<DepositWebhookInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof confirmDepositWebhook>>,
+        TError,
+        {data: BodyType<DepositWebhookInput>},
+        TContext
+      > => {
+      return useMutation(getConfirmDepositWebhookMutationOptions(options));
     }
 
 export const getTransferSkzUrl = () => {
@@ -1657,6 +1733,223 @@ export function useListAllTransactions<TData = Awaited<ReturnType<typeof listAll
 
 
 
+export const getListPendingDepositsUrl = () => {
+
+
+
+
+  return `/api/admin/deposits/pending`
+}
+
+/**
+ * @summary List deposits awaiting confirmation (admin)
+ */
+export const listPendingDeposits = async ( options?: RequestInit): Promise<PendingDeposit[]> => {
+
+  return customFetch<PendingDeposit[]>(getListPendingDepositsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPendingDepositsQueryKey = () => {
+    return [
+    `/api/admin/deposits/pending`
+    ] as const;
+    }
+
+
+export const getListPendingDepositsQueryOptions = <TData = Awaited<ReturnType<typeof listPendingDeposits>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPendingDeposits>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPendingDepositsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPendingDeposits>>> = ({ signal }) => listPendingDeposits({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPendingDeposits>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListPendingDepositsQueryResult = NonNullable<Awaited<ReturnType<typeof listPendingDeposits>>>
+export type ListPendingDepositsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List deposits awaiting confirmation (admin)
+ */
+
+export function useListPendingDeposits<TData = Awaited<ReturnType<typeof listPendingDeposits>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listPendingDeposits>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListPendingDepositsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getConfirmDepositUrl = (transactionId: number,) => {
+
+
+
+
+  return `/api/admin/deposits/${transactionId}/confirm`
+}
+
+/**
+ * @summary Confirm and credit a pending deposit (admin)
+ */
+export const confirmDeposit = async (transactionId: number, options?: RequestInit): Promise<DepositConfirmResult> => {
+
+  return customFetch<DepositConfirmResult>(getConfirmDepositUrl(transactionId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getConfirmDepositMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmDeposit>>, TError,{transactionId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof confirmDeposit>>, TError,{transactionId: number}, TContext> => {
+
+const mutationKey = ['confirmDeposit'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof confirmDeposit>>, {transactionId: number}> = (props) => {
+          const {transactionId} = props ?? {};
+
+          return  confirmDeposit(transactionId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConfirmDepositMutationResult = NonNullable<Awaited<ReturnType<typeof confirmDeposit>>>
+
+    export type ConfirmDepositMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Confirm and credit a pending deposit (admin)
+ */
+export const useConfirmDeposit = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmDeposit>>, TError,{transactionId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof confirmDeposit>>,
+        TError,
+        {transactionId: number},
+        TContext
+      > => {
+      return useMutation(getConfirmDepositMutationOptions(options));
+    }
+
+export const getRejectDepositUrl = (transactionId: number,) => {
+
+
+
+
+  return `/api/admin/deposits/${transactionId}/reject`
+}
+
+/**
+ * @summary Reject a pending deposit (admin)
+ */
+export const rejectDeposit = async (transactionId: number, options?: RequestInit): Promise<DepositConfirmResult> => {
+
+  return customFetch<DepositConfirmResult>(getRejectDepositUrl(transactionId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+export const getRejectDepositMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectDeposit>>, TError,{transactionId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectDeposit>>, TError,{transactionId: number}, TContext> => {
+
+const mutationKey = ['rejectDeposit'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectDeposit>>, {transactionId: number}> = (props) => {
+          const {transactionId} = props ?? {};
+
+          return  rejectDeposit(transactionId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectDepositMutationResult = NonNullable<Awaited<ReturnType<typeof rejectDeposit>>>
+
+    export type RejectDepositMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Reject a pending deposit (admin)
+ */
+export const useRejectDeposit = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectDeposit>>, TError,{transactionId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rejectDeposit>>,
+        TError,
+        {transactionId: number},
+        TContext
+      > => {
+      return useMutation(getRejectDepositMutationOptions(options));
+    }
+
 export const getListGamesUrl = (params?: ListGamesParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -2031,6 +2324,78 @@ export const useEndGameSession = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getEndGameSessionMutationOptions(options));
+    }
+
+export const getGameSessionEventUrl = (sessionId: number,) => {
+
+
+
+
+  return `/api/games/session/${sessionId}/event`
+}
+
+/**
+ * @summary Record a validated scoring event (server tallies the score)
+ */
+export const gameSessionEvent = async (sessionId: number,
+    gameSessionEventInput: GameSessionEventInput, options?: RequestInit): Promise<GameSessionEventResult> => {
+
+  return customFetch<GameSessionEventResult>(getGameSessionEventUrl(sessionId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      gameSessionEventInput,)
+  }
+);}
+
+
+
+
+export const getGameSessionEventMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof gameSessionEvent>>, TError,{sessionId: number;data: BodyType<GameSessionEventInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof gameSessionEvent>>, TError,{sessionId: number;data: BodyType<GameSessionEventInput>}, TContext> => {
+
+const mutationKey = ['gameSessionEvent'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof gameSessionEvent>>, {sessionId: number;data: BodyType<GameSessionEventInput>}> = (props) => {
+          const {sessionId,data} = props ?? {};
+
+          return  gameSessionEvent(sessionId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GameSessionEventMutationResult = NonNullable<Awaited<ReturnType<typeof gameSessionEvent>>>
+    export type GameSessionEventMutationBody = BodyType<GameSessionEventInput>
+    export type GameSessionEventMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Record a validated scoring event (server tallies the score)
+ */
+export const useGameSessionEvent = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof gameSessionEvent>>, TError,{sessionId: number;data: BodyType<GameSessionEventInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof gameSessionEvent>>,
+        TError,
+        {sessionId: number;data: BodyType<GameSessionEventInput>},
+        TContext
+      > => {
+      return useMutation(getGameSessionEventMutationOptions(options));
     }
 
 export const getGetSessionHistoryUrl = (params: GetSessionHistoryParams,) => {
