@@ -2,18 +2,15 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { usersTable, transactionsTable, settingsTable } from "@workspace/db";
 import { eq, sql, desc, and } from "drizzle-orm";
-import { GetMyReferralsQueryParams, GetReferralEarningsQueryParams, GetReferralLeaderboardQueryParams } from "@workspace/api-zod";
+import { GetReferralLeaderboardQueryParams } from "@workspace/api-zod";
+import { requireAuth } from "../lib/auth";
 
 const router = Router();
 
 // GET /api/referrals/my
-router.get("/my", async (req, res) => {
-  const parsed = GetMyReferralsQueryParams.safeParse(req.query);
-  if (!parsed.success) {
-    res.status(400).json({ error: "telegram_id is required" });
-    return;
-  }
-  const { telegram_id } = parsed.data;
+router.get("/my", requireAuth, async (req, res) => {
+  // Actor is derived from the authenticated identity, never the client query.
+  const telegram_id = req.auth!.telegramId;
 
   try {
     const users = await db.select().from(usersTable).where(eq(usersTable.telegramId, telegram_id)).limit(1);
@@ -75,13 +72,9 @@ router.get("/my", async (req, res) => {
 });
 
 // GET /api/referrals/earnings
-router.get("/earnings", async (req, res) => {
-  const parsed = GetReferralEarningsQueryParams.safeParse(req.query);
-  if (!parsed.success) {
-    res.status(400).json({ error: "telegram_id is required" });
-    return;
-  }
-  const { telegram_id } = parsed.data;
+router.get("/earnings", requireAuth, async (req, res) => {
+  // Actor is derived from the authenticated identity, never the client query.
+  const telegram_id = req.auth!.telegramId;
 
   try {
     const users = await db.select().from(usersTable).where(eq(usersTable.telegramId, telegram_id)).limit(1);

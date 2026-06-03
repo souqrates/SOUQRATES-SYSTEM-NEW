@@ -1,5 +1,6 @@
-import { pgTable, text, serial, timestamp, boolean, integer, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, boolean, integer, numeric, index, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
+import { usersTable } from "./users";
 
 export const souqProductsTable = pgTable("souq_products", {
   id: serial("id").primaryKey(),
@@ -24,11 +25,15 @@ export const souqProductsTable = pgTable("souq_products", {
 
 export const souqPurchasesTable = pgTable("souq_purchases", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
-  productId: integer("product_id").notNull(),
+  userId: integer("user_id").notNull().references(() => usersTable.id),
+  productId: integer("product_id").notNull().references(() => souqProductsTable.id),
   pricePaid: numeric("price_paid", { precision: 18, scale: 6 }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index("souq_purchases_user_id_idx").on(table.userId),
+  index("souq_purchases_product_id_idx").on(table.productId),
+  unique("souq_purchases_user_product_unique").on(table.userId, table.productId),
+]);
 
 export const insertSouqProductSchema = createInsertSchema(souqProductsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertSouqPurchaseSchema = createInsertSchema(souqPurchasesTable).omit({ id: true, createdAt: true });

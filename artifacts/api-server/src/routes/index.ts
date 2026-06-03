@@ -10,15 +10,19 @@ import gamesRouter from "./games";
 import souqRouter from "./souq";
 import subagentRouter from "./subagent";
 import { handleWebhookUpdate } from "../lib/setupBots";
+import { attachAuth, requireAdmin } from "../lib/auth";
 
 const router: IRouter = Router();
+
+// Identify the caller (verified Telegram initData, or dev fallback) for every request.
+router.use(attachAuth);
 
 router.use(healthRouter);
 router.use("/users", usersRouter);
 router.use("/wallet", walletRouter);
 router.use("/referrals", referralsRouter);
 router.use("/bots", botsRouter);
-router.use("/admin", adminRouter);
+router.use("/admin", requireAdmin, adminRouter);
 router.use("/settings", settingsRouter);
 router.use("/games", gamesRouter);
 router.use("/souq", souqRouter);

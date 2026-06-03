@@ -8,6 +8,13 @@ import { testRedis, testQStash } from "../lib/cache";
 
 const router = Router();
 
+/** Thrown inside admin balance transactions to map to a specific HTTP status. */
+class AdminBalanceError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+  }
+}
+
 function serializeUser(u: typeof usersTable.$inferSelect) {
   return {
     id: u.id,
@@ -181,16 +188,21 @@ router.post("/users/:userId/send-skz", async (req, res) => {
   const amt = parseFloat(amount);
   if (!amount || isNaN(amt) || amt <= 0) { res.status(400).json({ error: "Invalid amount" }); return; }
   try {
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
-    if (!user) { res.status(404).json({ error: "User not found" }); return; }
-    const newBalance = (parseFloat(user.skzBalance) + amt).toFixed(6);
-    await db.update(usersTable).set({ skzBalance: newBalance }).where(eq(usersTable.id, userId));
-    await db.insert(transactionsTable).values({
-      userId, type: "transfer_in", amount: amt.toFixed(6), status: "confirmed",
-      note: note || "Admin credit",
+    const newBalance = await db.transaction(async (tx) => {
+      const [credited] = await tx.update(usersTable)
+        .set({ skzBalance: sql`${usersTable.skzBalance} + ${amt}` })
+        .where(eq(usersTable.id, userId))
+        .returning({ balance: usersTable.skzBalance });
+      if (!credited) throw new AdminBalanceError(404, "User not found");
+      await tx.insert(transactionsTable).values({
+        userId, type: "transfer_in", amount: amt.toFixed(6), status: "confirmed",
+        note: note || "Admin credit",
+      });
+      return parseFloat(credited.balance);
     });
-    res.json({ success: true, newBalance: parseFloat(newBalance) });
+    res.json({ success: true, newBalance });
   } catch (err) {
+    if (err instanceof AdminBalanceError) { res.status(err.status).json({ error: err.message }); return; }
     req.log.error({ err }, "Error sending SKZ to user");
     res.status(500).json({ error: "Internal server error" });
   }
@@ -204,18 +216,24 @@ router.post("/users/:userId/deduct-skz", async (req, res) => {
   const amt = parseFloat(amount);
   if (!amount || isNaN(amt) || amt <= 0) { res.status(400).json({ error: "Invalid amount" }); return; }
   try {
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
-    if (!user) { res.status(404).json({ error: "User not found" }); return; }
-    const currentBal = parseFloat(user.skzBalance);
-    if (currentBal < amt) { res.status(400).json({ error: "Insufficient balance" }); return; }
-    const newBalance = (currentBal - amt).toFixed(6);
-    await db.update(usersTable).set({ skzBalance: newBalance }).where(eq(usersTable.id, userId));
-    await db.insert(transactionsTable).values({
-      userId, type: "transfer_out", amount: amt.toFixed(6), status: "confirmed",
-      note: note || "Admin deduction",
+    const newBalance = await db.transaction(async (tx) => {
+      const [exists] = await tx.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+      if (!exists) throw new AdminBalanceError(404, "User not found");
+      // Atomic debit: only succeeds if the user still has the funds.
+      const [debited] = await tx.update(usersTable)
+        .set({ skzBalance: sql`${usersTable.skzBalance} - ${amt}` })
+        .where(and(eq(usersTable.id, userId), sql`${usersTable.skzBalance} >= ${amt}`))
+        .returning({ balance: usersTable.skzBalance });
+      if (!debited) throw new AdminBalanceError(400, "Insufficient balance");
+      await tx.insert(transactionsTable).values({
+        userId, type: "transfer_out", amount: amt.toFixed(6), status: "confirmed",
+        note: note || "Admin deduction",
+      });
+      return parseFloat(debited.balance);
     });
-    res.json({ success: true, newBalance: parseFloat(newBalance) });
+    res.json({ success: true, newBalance });
   } catch (err) {
+    if (err instanceof AdminBalanceError) { res.status(err.status).json({ error: err.message }); return; }
     req.log.error({ err }, "Error deducting SKZ from user");
     res.status(500).json({ error: "Internal server error" });
   }

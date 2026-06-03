@@ -1,6 +1,7 @@
-import { pgTable, text, serial, timestamp, boolean, integer, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, boolean, integer, numeric, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { usersTable } from "./users";
 
 export const skillzGamesTable = pgTable("skillz_games", {
   id: serial("id").primaryKey(),
@@ -18,7 +19,7 @@ export const skillzGamesTable = pgTable("skillz_games", {
 
 export const gameTicketsTable = pgTable("game_tickets", {
   id: serial("id").primaryKey(),
-  gameId: integer("game_id").notNull(),
+  gameId: integer("game_id").notNull().references(() => skillzGamesTable.id),
   tier: integer("tier").notNull(),
   name: text("name").notNull(),
   entryPrice: numeric("entry_price", { precision: 18, scale: 6 }).notNull().default("10"),
@@ -30,13 +31,15 @@ export const gameTicketsTable = pgTable("game_tickets", {
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (table) => [
+  index("game_tickets_game_id_idx").on(table.gameId),
+]);
 
 export const gameSessionsTable = pgTable("game_sessions", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
-  gameId: integer("game_id").notNull(),
-  ticketId: integer("ticket_id").notNull(),
+  userId: integer("user_id").notNull().references(() => usersTable.id),
+  gameId: integer("game_id").notNull().references(() => skillzGamesTable.id),
+  ticketId: integer("ticket_id").notNull().references(() => gameTicketsTable.id),
   status: text("status").notNull().default("active"),
   score: integer("score").notNull().default(0),
   entryPrice: numeric("entry_price", { precision: 18, scale: 6 }).notNull(),
@@ -47,7 +50,11 @@ export const gameSessionsTable = pgTable("game_sessions", {
   wrongHitPenalty: integer("wrong_hit_penalty").notNull(),
   startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
   endedAt: timestamp("ended_at", { withTimezone: true }),
-});
+}, (table) => [
+  index("game_sessions_user_id_idx").on(table.userId),
+  index("game_sessions_game_id_idx").on(table.gameId),
+  index("game_sessions_status_idx").on(table.status),
+]);
 
 export const insertGameSchema = createInsertSchema(skillzGamesTable).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertTicketSchema = createInsertSchema(gameTicketsTable).omit({ id: true, createdAt: true, updatedAt: true });

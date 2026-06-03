@@ -1,7 +1,11 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { subagentApplicationsTable, usersTable, transactionsTable } from "@workspace/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
+import { requireAdmin, requireAuth } from "../lib/auth";
+
+/** Thrown inside the transfer transaction when the sender lacks funds. */
+class InsufficientFundsError extends Error {}
 
 const router = Router();
 
@@ -26,13 +30,20 @@ function serializeApplication(a: typeof subagentApplicationsTable.$inferSelect) 
 }
 
 // POST /api/subagent/apply
-router.post("/apply", async (req, res) => {
-  const { telegramId, userId, fullName, phone, email, company, country, address, experience, motivation } = req.body;
-  if (!telegramId || !userId || !fullName || !phone || !email || !country || !address || !experience || !motivation) {
+router.post("/apply", requireAuth, async (req, res) => {
+  const { fullName, phone, email, company, country, address, experience, motivation } = req.body;
+  if (!fullName || !phone || !email || !country || !address || !experience || !motivation) {
     res.status(400).json({ error: "Missing required fields" });
     return;
   }
+  // Identity is derived from the authenticated user, never the client body.
+  const telegramId = req.auth!.telegramId;
   try {
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.telegramId, telegramId)).limit(1);
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
     const existing = await db
       .select()
       .from(subagentApplicationsTable)
@@ -44,7 +55,7 @@ router.post("/apply", async (req, res) => {
     }
     const inserted = await db
       .insert(subagentApplicationsTable)
-      .values({ userId, telegramId, fullName, phone, email, company: company || null, country, address, experience, motivation })
+      .values({ userId: user.id, telegramId, fullName, phone, email, company: company || null, country, address, experience, motivation })
       .returning();
     res.json(serializeApplication(inserted[0]));
   } catch (err) {
@@ -53,10 +64,10 @@ router.post("/apply", async (req, res) => {
   }
 });
 
-// GET /api/subagent/me?telegram_id=xxx
-router.get("/me", async (req, res) => {
-  const telegramId = req.query.telegram_id as string;
-  if (!telegramId) { res.status(400).json({ error: "telegram_id required" }); return; }
+// GET /api/subagent/me
+router.get("/me", requireAuth, async (req, res) => {
+  // Identity is derived from the authenticated user, never the client query.
+  const telegramId = req.auth!.telegramId;
   try {
     const apps = await db
       .select()
@@ -78,10 +89,16 @@ router.get("/me", async (req, res) => {
 });
 
 // POST /api/subagent/transfer
-router.post("/transfer", async (req, res) => {
-  const { fromTelegramId, toTelegramId, amount, note } = req.body;
-  if (!fromTelegramId || !toTelegramId || !amount || amount <= 0) {
+router.post("/transfer", requireAuth, async (req, res) => {
+  const { toTelegramId, amount, note } = req.body;
+  // Sender is always the authenticated user, never taken from the client body.
+  const fromTelegramId = req.auth!.telegramId;
+  if (!toTelegramId || typeof amount !== "number" || amount <= 0) {
     res.status(400).json({ error: "Invalid transfer data" });
+    return;
+  }
+  if (fromTelegramId === toTelegramId) {
+    res.status(400).json({ error: "Cannot transfer to yourself" });
     return;
   }
   try {
@@ -100,34 +117,42 @@ router.post("/transfer", async (req, res) => {
     const [recipient] = await db.select().from(usersTable).where(eq(usersTable.telegramId, toTelegramId)).limit(1);
     if (!sender) { res.status(404).json({ error: "Sender not found" }); return; }
     if (!recipient) { res.status(404).json({ error: "Recipient not found" }); return; }
-    if (Number(sender.skzBalance) < amount) {
-      res.status(400).json({ error: "Insufficient balance" });
-      return;
-    }
-    // Deduct from sender
-    await db.update(usersTable)
-      .set({ skzBalance: (Number(sender.skzBalance) - amount).toFixed(6) })
-      .where(eq(usersTable.id, sender.id));
-    // Add to recipient
-    await db.update(usersTable)
-      .set({ skzBalance: (Number(recipient.skzBalance) + amount).toFixed(6) })
-      .where(eq(usersTable.id, recipient.id));
-    // Record transactions
+
     const txNote = note || `Subagent transfer from ${fromTelegramId}`;
-    const [outTx] = await db.insert(transactionsTable).values({
-      userId: sender.id,
-      type: "transfer_out",
-      amount: amount.toFixed(6),
-      status: "confirmed",
-      note: txNote,
-    }).returning();
-    await db.insert(transactionsTable).values({
-      userId: recipient.id,
-      type: "transfer_in",
-      amount: amount.toFixed(6),
-      status: "confirmed",
-      note: txNote,
+    const outTx = await db.transaction(async (tx) => {
+      // Atomic debit: only succeeds if the sender still has the funds. This
+      // conditional update is the guard against concurrent double-spends.
+      const debited = await tx
+        .update(usersTable)
+        .set({ skzBalance: sql`${usersTable.skzBalance} - ${amount}` })
+        .where(and(eq(usersTable.id, sender.id), sql`${usersTable.skzBalance} >= ${amount}`))
+        .returning({ id: usersTable.id });
+      if (debited.length === 0) throw new InsufficientFundsError();
+
+      await tx
+        .update(usersTable)
+        .set({ skzBalance: sql`${usersTable.skzBalance} + ${amount}` })
+        .where(eq(usersTable.id, recipient.id));
+
+      const [out] = await tx.insert(transactionsTable).values({
+        userId: sender.id,
+        type: "transfer_out",
+        amount: amount.toFixed(6),
+        status: "confirmed",
+        note: txNote,
+        refUserId: recipient.id,
+      }).returning();
+      await tx.insert(transactionsTable).values({
+        userId: recipient.id,
+        type: "transfer_in",
+        amount: amount.toFixed(6),
+        status: "confirmed",
+        note: txNote,
+        refUserId: sender.id,
+      });
+      return out;
     });
+
     res.json({
       id: outTx.id,
       type: outTx.type,
@@ -137,15 +162,19 @@ router.post("/transfer", async (req, res) => {
       createdAt: outTx.createdAt.toISOString(),
     });
   } catch (err) {
+    if (err instanceof InsufficientFundsError) {
+      res.status(400).json({ error: "Insufficient balance" });
+      return;
+    }
     req.log.error({ err }, "Error processing subagent transfer");
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
-// GET /api/subagent/transfers?telegram_id=xxx
-router.get("/transfers", async (req, res) => {
-  const telegramId = req.query.telegram_id as string;
-  if (!telegramId) { res.status(400).json({ error: "telegram_id required" }); return; }
+// GET /api/subagent/transfers
+router.get("/transfers", requireAuth, async (req, res) => {
+  // Identity is derived from the authenticated user, never the client query.
+  const telegramId = req.auth!.telegramId;
   try {
     const app = await db
       .select()
@@ -177,7 +206,7 @@ router.get("/transfers", async (req, res) => {
 });
 
 // GET /api/admin/subagent-applications
-router.get("/admin-applications", async (req, res) => {
+router.get("/admin-applications", requireAdmin, async (req, res) => {
   try {
     const apps = await db
       .select()
@@ -191,8 +220,8 @@ router.get("/admin-applications", async (req, res) => {
 });
 
 // PATCH /api/subagent/admin-applications/:id
-router.patch("/admin-applications/:id", async (req, res) => {
-  const id = parseInt(req.params.id);
+router.patch("/admin-applications/:id", requireAdmin, async (req, res) => {
+  const id = parseInt(String(req.params.id));
   if (isNaN(id)) { res.status(400).json({ error: "Invalid ID" }); return; }
   const { status, reviewNote } = req.body;
   if (!status || !["approved", "rejected"].includes(status)) {

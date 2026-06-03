@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { settingsTable } from "@workspace/db";
 import { UpdateSettingsBody } from "@workspace/api-zod";
+import { requireAdmin } from "../lib/auth";
 
 const router = Router();
 
@@ -17,7 +18,7 @@ function serializeSettings(s: typeof settingsTable.$inferSelect) {
     maxWithdraw: parseFloat(s.maxWithdraw),
     maintenanceMode: s.maintenanceMode,
     maintenanceMsg: s.maintenanceMsg,
-    botToken: s.botToken,
+    botToken: s.botToken ? "configured" : "",
     welcomeMessage: s.welcomeMessage,
     updatedAt: s.updatedAt.toISOString(),
   };
@@ -41,7 +42,7 @@ router.get("/", async (req, res) => {
 });
 
 // PATCH /api/settings
-router.patch("/", async (req, res) => {
+router.patch("/", requireAdmin, async (req, res) => {
   const parsed = UpdateSettingsBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid input" }); return; }
   try {

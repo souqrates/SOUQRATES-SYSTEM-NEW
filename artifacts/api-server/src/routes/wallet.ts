@@ -3,9 +3,13 @@ import { db } from "@workspace/db";
 import { usersTable, transactionsTable, settingsTable } from "@workspace/db";
 import { eq, sql, and } from "drizzle-orm";
 import { processReferralCommissions } from "../lib/referralCommissions";
-import { DepositWalletBody, TransferSkzBody, GetWalletBalanceQueryParams, ListTransactionsQueryParams } from "@workspace/api-zod";
+import { requireAuth } from "../lib/auth";
+import { DepositWalletBody, TransferSkzBody, ListTransactionsQueryParams } from "@workspace/api-zod";
 
 const router = Router();
+
+/** Thrown inside a transaction when the sender lacks sufficient balance. */
+class InsufficientFundsError extends Error {}
 
 function serializeTx(t: typeof transactionsTable.$inferSelect) {
   return {
@@ -23,13 +27,9 @@ function serializeTx(t: typeof transactionsTable.$inferSelect) {
 }
 
 // GET /api/wallet/balance
-router.get("/balance", async (req, res) => {
-  const parsed = GetWalletBalanceQueryParams.safeParse(req.query);
-  if (!parsed.success) {
-    res.status(400).json({ error: "telegram_id is required" });
-    return;
-  }
-  const { telegram_id } = parsed.data;
+router.get("/balance", requireAuth, async (req, res) => {
+  // Actor is derived from the authenticated identity, never the client query.
+  const telegram_id = req.auth!.telegramId;
   try {
     const users = await db.select().from(usersTable).where(eq(usersTable.telegramId, telegram_id)).limit(1);
     if (users.length === 0) {
@@ -67,13 +67,15 @@ router.get("/balance", async (req, res) => {
 });
 
 // POST /api/wallet/deposit
-router.post("/deposit", async (req, res) => {
+router.post("/deposit", requireAuth, async (req, res) => {
   const parsed = DepositWalletBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid input", details: parsed.error.issues });
     return;
   }
-  const { telegramId, amount, currency, txHash, network } = parsed.data;
+  const { amount, currency, txHash, network } = parsed.data;
+  // Actor is derived from the authenticated identity, never the client body.
+  const telegramId = req.auth!.telegramId;
 
   try {
     const users = await db.select().from(usersTable).where(eq(usersTable.telegramId, telegramId)).limit(1);
@@ -83,32 +85,36 @@ router.post("/deposit", async (req, res) => {
     }
     const user = users[0];
 
-    // Get conversion rate
-    const settings = await db.select().from(settingsTable).limit(1);
-    const rate = settings.length > 0
-      ? (currency === "TON" ? parseFloat(settings[0].skzPerTon) : parseFloat(settings[0].skzPerUsdt))
-      : 100;
-    const skzAmount = amount * rate;
+    const inserted = await db.transaction(async (tx) => {
+      // Get conversion rate
+      const settings = await tx.select().from(settingsTable).limit(1);
+      const rate = settings.length > 0
+        ? (currency === "TON" ? parseFloat(settings[0].skzPerTon) : parseFloat(settings[0].skzPerUsdt))
+        : 100;
+      const skzAmount = amount * rate;
 
-    const tx = await db.insert(transactionsTable).values({
-      userId: user.id,
-      type: "deposit",
-      amount: skzAmount.toString(),
-      currency,
-      txHash,
-      status: "confirmed",
-      note: `Deposit ${amount} ${currency} via ${network ?? "blockchain"}`,
-    }).returning();
+      const [txRow] = await tx.insert(transactionsTable).values({
+        userId: user.id,
+        type: "deposit",
+        amount: skzAmount.toString(),
+        currency,
+        txHash,
+        status: "confirmed",
+        note: `Deposit ${amount} ${currency} via ${network ?? "blockchain"}`,
+      }).returning();
 
-    // Credit balance
-    await db.update(usersTable)
-      .set({ skzBalance: sql`${usersTable.skzBalance} + ${skzAmount}` })
-      .where(eq(usersTable.id, user.id));
+      // Credit balance
+      await tx.update(usersTable)
+        .set({ skzBalance: sql`${usersTable.skzBalance} + ${skzAmount}` })
+        .where(eq(usersTable.id, user.id));
 
-    // Process referral commissions
-    await processReferralCommissions(user.id, skzAmount, settings.length > 0 ? settings[0] : null);
+      // Process referral commissions in the same transaction
+      await processReferralCommissions(tx, user.id, skzAmount, settings.length > 0 ? settings[0] : null);
 
-    res.json(serializeTx(tx[0]));
+      return txRow;
+    });
+
+    res.json(serializeTx(inserted));
   } catch (err) {
     req.log.error({ err }, "Error processing deposit");
     res.status(500).json({ error: "Internal server error" });
@@ -116,13 +122,24 @@ router.post("/deposit", async (req, res) => {
 });
 
 // POST /api/wallet/transfer
-router.post("/transfer", async (req, res) => {
+router.post("/transfer", requireAuth, async (req, res) => {
   const parsed = TransferSkzBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid input", details: parsed.error.issues });
     return;
   }
-  const { fromTelegramId, toTelegramId, amount, note } = parsed.data;
+  const { toTelegramId, amount, note } = parsed.data;
+  // Sender is always the authenticated user, never taken from the client body.
+  const fromTelegramId = req.auth!.telegramId;
+
+  if (amount <= 0) {
+    res.status(400).json({ error: "Amount must be positive" });
+    return;
+  }
+  if (fromTelegramId === toTelegramId) {
+    res.status(400).json({ error: "Cannot transfer to yourself" });
+    return;
+  }
 
   try {
     const [fromUsers, toUsers] = await Promise.all([
@@ -135,36 +152,42 @@ router.post("/transfer", async (req, res) => {
     const from = fromUsers[0];
     const to = toUsers[0];
 
-    if (parseFloat(from.skzBalance) < amount) {
+    const txOut = await db.transaction(async (tx) => {
+      // Atomic debit: only succeeds if the sender still has the funds. This
+      // conditional update is the guard against concurrent double-spends.
+      const debited = await tx
+        .update(usersTable)
+        .set({ skzBalance: sql`${usersTable.skzBalance} - ${amount}` })
+        .where(and(eq(usersTable.id, from.id), sql`${usersTable.skzBalance} >= ${amount}`))
+        .returning({ id: usersTable.id });
+      if (debited.length === 0) throw new InsufficientFundsError();
+
+      // Credit receiver
+      await tx.update(usersTable).set({ skzBalance: sql`${usersTable.skzBalance} + ${amount}` }).where(eq(usersTable.id, to.id));
+
+      const [out] = await tx.insert(transactionsTable).values({ userId: from.id, type: "transfer_out", amount: amount.toString(), status: "confirmed", note: note ?? `Transfer to ${to.username ?? to.telegramId}`, refUserId: to.id }).returning();
+      await tx.insert(transactionsTable).values({ userId: to.id, type: "transfer_in", amount: amount.toString(), status: "confirmed", note: note ?? `Transfer from ${from.username ?? from.telegramId}`, refUserId: from.id });
+
+      return out;
+    });
+
+    res.json(serializeTx(txOut));
+  } catch (err) {
+    if (err instanceof InsufficientFundsError) {
       res.status(400).json({ error: "Insufficient SKZ balance" });
       return;
     }
-
-    // Debit sender
-    await db.update(usersTable).set({ skzBalance: sql`${usersTable.skzBalance} - ${amount}` }).where(eq(usersTable.id, from.id));
-    // Credit receiver
-    await db.update(usersTable).set({ skzBalance: sql`${usersTable.skzBalance} + ${amount}` }).where(eq(usersTable.id, to.id));
-
-    const [txOut] = await Promise.all([
-      db.insert(transactionsTable).values({ userId: from.id, type: "transfer_out", amount: amount.toString(), status: "confirmed", note: note ?? `Transfer to ${to.username ?? to.telegramId}`, refUserId: to.id }).returning(),
-      db.insert(transactionsTable).values({ userId: to.id, type: "transfer_in", amount: amount.toString(), status: "confirmed", note: note ?? `Transfer from ${from.username ?? from.telegramId}`, refUserId: from.id }),
-    ]);
-
-    res.json(serializeTx(txOut[0]));
-  } catch (err) {
     req.log.error({ err }, "Error processing transfer");
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
 // GET /api/wallet/transactions
-router.get("/transactions", async (req, res) => {
+router.get("/transactions", requireAuth, async (req, res) => {
   const parsed = ListTransactionsQueryParams.safeParse(req.query);
-  if (!parsed.success) {
-    res.status(400).json({ error: "telegram_id is required" });
-    return;
-  }
-  const { telegram_id, page = 1, limit = 20 } = parsed.data;
+  const { page = 1, limit = 20 } = parsed.success ? parsed.data : {};
+  // Actor is derived from the authenticated identity, never the client query.
+  const telegram_id = req.auth!.telegramId;
   const offset = (page - 1) * limit;
 
   try {

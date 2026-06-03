@@ -2,7 +2,8 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { usersTable } from "@workspace/db";
 import { eq, ilike, sql, or } from "drizzle-orm";
-import { RegisterUserBody, ListUsersQueryParams, GetMeQueryParams } from "@workspace/api-zod";
+import { RegisterUserBody, ListUsersQueryParams } from "@workspace/api-zod";
+import { requireAuth } from "../lib/auth";
 import { randomBytes } from "crypto";
 
 const router = Router();
@@ -82,13 +83,9 @@ router.post("/register", async (req, res) => {
 });
 
 // GET /api/users/me
-router.get("/me", async (req, res) => {
-  const parsed = GetMeQueryParams.safeParse(req.query);
-  if (!parsed.success) {
-    res.status(400).json({ error: "telegram_id is required" });
-    return;
-  }
-  const { telegram_id } = parsed.data;
+router.get("/me", requireAuth, async (req, res) => {
+  // Actor is derived from the authenticated identity, never the client query.
+  const telegram_id = req.auth!.telegramId;
   try {
     const users = await db.select().from(usersTable).where(eq(usersTable.telegramId, telegram_id)).limit(1);
     if (users.length === 0) {

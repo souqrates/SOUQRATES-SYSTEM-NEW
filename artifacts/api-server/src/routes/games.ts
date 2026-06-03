@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { skillzGamesTable, gameTicketsTable, gameSessionsTable, usersTable } from "@workspace/db";
 import { eq, desc, sql, and, inArray } from "drizzle-orm";
+import { requireAdmin, requireAuth } from "../lib/auth";
 import {
   ListGamesQueryParams,
   GetGameParams,
@@ -17,6 +18,9 @@ import {
 } from "@workspace/api-zod";
 
 const router = Router();
+
+/** Thrown when a game session is ended more than once (concurrency guard). */
+class SessionSettledError extends Error {}
 
 function serializeGame(g: typeof skillzGamesTable.$inferSelect) {
   return {
@@ -186,14 +190,12 @@ router.get("/leaderboard", async (req, res) => {
 });
 
 // GET /api/games/session/history
-router.get("/session/history", async (req, res) => {
+router.get("/session/history", requireAuth, async (req, res) => {
   try {
     const parsed = GetSessionHistoryQueryParams.safeParse(req.query);
-    if (!parsed.success) {
-      res.status(400).json({ error: "telegram_id is required" });
-      return;
-    }
-    const { telegram_id, page = 1, limit = 20 } = parsed.data;
+    const { page = 1, limit = 20 } = parsed.success ? parsed.data : {};
+    // Actor is derived from the authenticated identity, never the client query.
+    const telegram_id = req.auth!.telegramId;
 
     const user = await db
       .select()
@@ -234,14 +236,16 @@ router.get("/session/history", async (req, res) => {
 });
 
 // POST /api/games/session/start
-router.post("/session/start", async (req, res) => {
+router.post("/session/start", requireAuth, async (req, res) => {
   try {
     const parsed = StartGameSessionBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "Invalid input", details: parsed.error.issues });
       return;
     }
-    const { telegramId, gameId, ticketId } = parsed.data;
+    const { gameId, ticketId } = parsed.data;
+    // Player is always the authenticated user, never taken from the client body.
+    const telegramId = req.auth!.telegramId;
 
     const [user, game, ticket] = await Promise.all([
       db.select().from(usersTable).where(eq(usersTable.telegramId, telegramId)).limit(1),
@@ -269,15 +273,22 @@ router.post("/session/start", async (req, res) => {
       return;
     }
 
+    let insufficient = false;
     const [session] = await db.transaction(async (tx) => {
-      await tx
+      // Atomic debit: only succeeds if the player still has the funds.
+      const debited = await tx
         .update(usersTable)
-        .set({ skzBalance: (userBalance - entryPrice).toFixed(6) })
-        .where(eq(usersTable.id, user[0].id));
+        .set({ skzBalance: sql`${usersTable.skzBalance} - ${entryPrice}` })
+        .where(and(eq(usersTable.id, user[0].id), sql`${usersTable.skzBalance} >= ${entryPrice}`))
+        .returning({ id: usersTable.id });
+      if (debited.length === 0) {
+        insufficient = true;
+        return [];
+      }
 
       await tx
         .update(skillzGamesTable)
-        .set({ totalPlays: game[0].totalPlays + 1 })
+        .set({ totalPlays: sql`${skillzGamesTable.totalPlays} + 1` })
         .where(eq(skillzGamesTable.id, gameId));
 
       return await tx
@@ -298,6 +309,11 @@ router.post("/session/start", async (req, res) => {
         .returning();
     });
 
+    if (insufficient || !session) {
+      res.status(400).json({ error: "Insufficient SKZ balance" });
+      return;
+    }
+
     res.json(serializeSession(session));
   } catch (err) {
     req.log.error({ err }, "startGameSession failed");
@@ -306,7 +322,7 @@ router.post("/session/start", async (req, res) => {
 });
 
 // POST /api/games/session/:sessionId/end
-router.post("/session/:sessionId/end", async (req, res) => {
+router.post("/session/:sessionId/end", requireAuth, async (req, res) => {
   try {
     const params = EndGameSessionParams.safeParse(req.params);
     const body = EndGameSessionBody.safeParse(req.body);
@@ -315,7 +331,7 @@ router.post("/session/:sessionId/end", async (req, res) => {
       return;
     }
     const { sessionId } = params.data;
-    const { finalScore, won } = body.data;
+    const { finalScore } = body.data;
 
     const session = await db
       .select()
@@ -327,40 +343,57 @@ router.post("/session/:sessionId/end", async (req, res) => {
       res.status(404).json({ error: "Session not found" });
       return;
     }
+
+    // Ownership check: the session must belong to the authenticated user.
+    const [authUser] = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.telegramId, req.auth!.telegramId))
+      .limit(1);
+    if (!authUser || authUser.id !== session[0].userId) {
+      res.status(403).json({ error: "Not your session" });
+      return;
+    }
+
     if (session[0].status !== "active") {
       res.status(400).json({ error: "Session already ended" });
       return;
     }
 
+    // Win is determined server-side from the reported score against the
+    // session's target — the client cannot claim a win without the score.
     const prizeAmount = parseFloat(session[0].prize);
+    const won = finalScore >= session[0].targetScore;
     const status = won ? "won" : "lost";
 
-    const user = await db
-      .select()
-      .from(usersTable)
-      .where(eq(usersTable.id, session[0].userId))
-      .limit(1);
-
-    let newBalance = parseFloat(user[0].skzBalance);
-    if (won) {
-      newBalance += prizeAmount;
-    }
-
-    await db.transaction(async (tx) => {
-      await tx
+    const newBalance = await db.transaction(async (tx) => {
+      // Settle the session atomically. The status guard prevents a session
+      // from being ended (and paid out) twice under concurrent requests.
+      const settled = await tx
         .update(gameSessionsTable)
         .set({ status, score: finalScore, endedAt: new Date() })
-        .where(eq(gameSessionsTable.id, sessionId));
+        .where(and(eq(gameSessionsTable.id, sessionId), eq(gameSessionsTable.status, "active")))
+        .returning({ id: gameSessionsTable.id });
+      if (settled.length === 0) throw new SessionSettledError();
 
       if (won) {
-        await tx
+        const [credited] = await tx
           .update(usersTable)
           .set({
-            skzBalance: newBalance.toFixed(6),
+            skzBalance: sql`${usersTable.skzBalance} + ${prizeAmount}`,
             totalEarned: sql`${usersTable.totalEarned} + ${prizeAmount}`,
           })
-          .where(eq(usersTable.id, session[0].userId));
+          .where(eq(usersTable.id, session[0].userId))
+          .returning({ balance: usersTable.skzBalance });
+        return parseFloat(credited.balance);
       }
+
+      const [current] = await tx
+        .select({ balance: usersTable.skzBalance })
+        .from(usersTable)
+        .where(eq(usersTable.id, session[0].userId))
+        .limit(1);
+      return parseFloat(current.balance);
     });
 
     res.json({
@@ -375,6 +408,10 @@ router.post("/session/:sessionId/end", async (req, res) => {
         : `Better luck next time! Target was ${session[0].targetScore} points.`,
     });
   } catch (err) {
+    if (err instanceof SessionSettledError) {
+      res.status(400).json({ error: "Session already ended" });
+      return;
+    }
     req.log.error({ err }, "endGameSession failed");
     res.status(500).json({ error: "Internal server error" });
   }
@@ -412,7 +449,7 @@ router.get("/:gameId", async (req, res) => {
 });
 
 // PATCH /api/games/:gameId
-router.patch("/:gameId", async (req, res) => {
+router.patch("/:gameId", requireAdmin, async (req, res) => {
   try {
     const params = UpdateGameParams.safeParse(req.params);
     const body = UpdateGameBody.safeParse(req.body);
@@ -442,7 +479,7 @@ router.patch("/:gameId", async (req, res) => {
 });
 
 // PATCH /api/games/:gameId/tickets
-router.patch("/:gameId/tickets", async (req, res) => {
+router.patch("/:gameId/tickets", requireAdmin, async (req, res) => {
   try {
     const params = UpdateGameTicketParams.safeParse(req.params);
     const body = UpdateGameTicketBody.safeParse(req.body);

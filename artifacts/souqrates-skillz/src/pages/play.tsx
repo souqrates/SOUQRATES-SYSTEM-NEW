@@ -12,16 +12,38 @@ interface GameConfig {
 
 function getEngine(slug: string, category: string): string {
   const MAP: Record<string, string> = {
-    "crypto-rhythm": "rhythm",   "heartbeat-sync": "rhythm",  "speed-match": "rhythm",   "signal-surge": "rhythm",
+    // Timing
+    "crypto-rhythm": "rhythm", "heartbeat-sync": "rhythm",
     "thread-cutter": "pendulum", "vault-cracker": "pendulum",
-    "shock-switch": "powerbar",  "gold-balance": "powerbar",  "tightrope-bot": "powerbar", "ping-master": "powerbar",
-    "meteor-catch": "meteor",    "coin-sorter": "meteor",     "egg-dash": "meteor",       "cyber-fishing": "meteor",
-    "laser-gate": "laser",       "last-turn": "laser",        "critical-leap": "laser",   "neon-rush": "laser",    "bounce-arrow": "laser", "bit-breaker": "laser",
-    "crypto-stack": "stack",     "jelly-bridge": "stack",     "crypto-bridge": "stack",   "stack-overflow": "stack",
-    "gravity-flip": "gravity",   "fragile-bubble": "gravity", "slippery-slope": "gravity","data-stream": "gravity",
-    "bot-slasher": "slasher",    "cyber-cleaner": "slasher",  "star-swiper": "slasher",   "bomb-defuser": "slasher",
-    "tornado-escape": "slasher", "lightning-path": "slasher", "node-war": "slasher",      "chain-reaction": "slasher","circuit-close": "slasher",
-    "crypto-shield": "shield",   "coin-magnet": "shield",
+    "shock-switch": "powerbar",
+    "meteor-catch": "meteor",
+    "laser-gate": "laser",
+    "critical-leap": "dodge", "last-turn": "dodge",
+    "crypto-shield": "shield",
+    // Physics
+    "crypto-stack": "stack", "jelly-bridge": "stack",
+    "gold-balance": "balance", "tightrope-bot": "balance",
+    "coin-magnet": "magnet",
+    "fragile-bubble": "bubble",
+    "slippery-slope": "gravity", "gravity-flip": "gravity",
+    "bounce-arrow": "laser",
+    "egg-dash": "meteor",
+    // Swipe
+    "bot-slasher": "slasher", "cyber-cleaner": "slasher", "cyber-fishing": "slasher",
+    "coin-sorter": "meteor",
+    "lightning-path": "trace", "star-swiper": "trace", "node-war": "trace", "bomb-defuser": "trace",
+    "tornado-escape": "dodge", "neon-rush": "dodge",
+    // Memory
+    "crypto-sequence": "simon", "code-break": "simon", "mirror-matrix": "simon",
+    "color-memory": "grid", "number-flash": "grid", "symbol-map": "grid",
+    "pattern-recall": "grid", "path-memory": "grid", "grid-scan": "grid", "speed-match": "grid",
+    // Strategy
+    "chain-reaction": "trace", "circuit-close": "trace",
+    "crypto-bridge": "stack", "stack-overflow": "stack",
+    "block-chain": "simon", "hash-clash": "grid",
+    "bit-breaker": "breaker", "ping-master": "breaker",
+    "signal-surge": "rhythm",
+    "data-stream": "dodge",
   };
   if (MAP[slug]) return MAP[slug];
   if (category === "Timing")   return "rhythm";
@@ -1270,6 +1292,659 @@ export default function Play() {
     }
 
     // ─────────────────────────────────────────────────────
+    // GRID ENGINE — memorize a set of lit cells, reproduce
+    // ─────────────────────────────────────────────────────
+    if (engine === "grid") {
+      const TOP_PAD = 64, BOT_PAD = 44;
+      let gridN = 4;
+      let target = new Set<number>();
+      let found = new Set<number>();
+      let wrong = new Set<number>();
+      let phase: "memorize" | "input" | "wait" = "memorize";
+      let memFrames = 0;
+      let round = 1;
+      let flashText = "", flashColor = "#fff", flashTimer = 0;
+      let cleanedUp = false;
+
+      function dims() { return { cw: W / gridN, ch: (H - TOP_PAD - BOT_PAD) / gridN }; }
+
+      function newRound() {
+        gridN = Math.min(6, 4 + Math.floor(scoreRef.current / 140));
+        const total = gridN * gridN;
+        const count = Math.min(total - 2, 3 + round + Math.floor(scoreRef.current / 90));
+        target = new Set(); found = new Set(); wrong = new Set();
+        while (target.size < count) target.add(Math.floor(Math.random() * total));
+        phase = "memorize";
+        memFrames = Math.max(48, 90 - round * 4);
+      }
+      newRound();
+
+      function tapCell(idx: number) {
+        if (phase !== "input") return;
+        if (found.has(idx) || wrong.has(idx)) return;
+        if (target.has(idx)) {
+          found.add(idx);
+          updateScore(cfg.correctHitValue); playHit();
+          flashText = "CORRECT"; flashColor = "#10b981"; flashTimer = 14;
+          if (found.size === target.size) {
+            round++; phase = "wait";
+            flashText = "PERFECT ROUND!"; flashColor = "#f59e0b"; flashTimer = 30; playPerfect();
+            setTimeout(() => { if (!cleanedUp) newRound(); }, 800);
+          }
+        } else {
+          wrong.add(idx);
+          updateScore(-cfg.wrongHitPenalty); playMiss();
+          flashText = "WRONG CELL"; flashColor = "#ef4444"; flashTimer = 20;
+        }
+      }
+
+      const onClick = (e: MouseEvent) => {
+        if (phase !== "input") return;
+        const { x, y } = getXY(e);
+        const { cw, ch } = dims();
+        const col = Math.floor(x / cw);
+        const row = Math.floor((y - TOP_PAD) / ch);
+        if (row < 0 || row >= gridN || col < 0 || col >= gridN) return;
+        tapCell(row * gridN + col);
+      };
+      const onTouch = (e: TouchEvent) => { e.preventDefault(); onClick(e as unknown as MouseEvent); };
+      canvas.addEventListener("click", onClick);
+      canvas.addEventListener("touchstart", onTouch, { passive: false });
+
+      function loop() {
+        ctx.fillStyle = "#03030c"; ctx.fillRect(0, 0, W, H);
+        const { cw, ch } = dims();
+
+        ctx.font = "bold 11px Orbitron"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        if (phase === "memorize") { ctx.fillStyle = "#f59e0b"; ctx.shadowColor = "#f59e0b"; ctx.shadowBlur = 12; ctx.fillText("MEMORIZE!", W / 2, 30); }
+        else if (phase === "input") { ctx.fillStyle = "#10b981"; ctx.shadowColor = "#10b981"; ctx.shadowBlur = 12; ctx.fillText(`REPRODUCE — ${found.size}/${target.size}`, W / 2, 30); }
+        else { ctx.fillStyle = "#a855f7"; ctx.shadowColor = "#a855f7"; ctx.shadowBlur = 12; ctx.fillText("...", W / 2, 30); }
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = "rgba(168,85,247,0.6)"; ctx.font = "8px Orbitron";
+        ctx.fillText(`ROUND ${round}  —  ${gridN}×${gridN}`, W / 2, 50);
+
+        const total = gridN * gridN;
+        for (let i = 0; i < total; i++) {
+          const r = Math.floor(i / gridN), c = i % gridN;
+          const cx = c * cw, cy = TOP_PAD + r * ch;
+          const showLit = phase === "memorize" && target.has(i);
+          const isFound = found.has(i);
+          const isWrong = wrong.has(i);
+          let col = "rgba(255,255,255,0.04)", bord = "rgba(255,255,255,0.07)", glow = 0;
+          if (showLit || isFound) { col = "rgba(16,185,129,0.25)"; bord = "#10b981"; glow = 18; }
+          if (isWrong) { col = "rgba(239,68,68,0.2)"; bord = "#ef4444"; glow = 14; }
+          if (phase === "wait" && target.has(i) && !isFound) { col = "rgba(245,158,11,0.2)"; bord = "#f59e0b"; glow = 12; }
+          ctx.fillStyle = col;
+          ctx.beginPath(); ctx.roundRect(cx + 3, cy + 3, cw - 6, ch - 6, 8); ctx.fill();
+          ctx.strokeStyle = bord; ctx.lineWidth = glow > 0 ? 2.5 : 1;
+          if (glow > 0) { ctx.shadowColor = bord; ctx.shadowBlur = glow; }
+          ctx.beginPath(); ctx.roundRect(cx + 3, cy + 3, cw - 6, ch - 6, 8); ctx.stroke();
+          ctx.shadowBlur = 0;
+        }
+
+        if (phase === "memorize") { memFrames--; if (memFrames <= 0) { phase = "input"; } }
+
+        if (flashTimer > 0) {
+          ctx.globalAlpha = flashTimer / 30; ctx.font = "bold 18px Orbitron"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          ctx.fillStyle = flashColor; ctx.shadowColor = flashColor; ctx.shadowBlur = 22;
+          ctx.fillText(flashText, W / 2, H - 70); ctx.shadowBlur = 0; ctx.globalAlpha = 1; flashTimer--;
+        }
+        ctx.fillStyle = "rgba(255,255,255,0.15)"; ctx.font = "9px Orbitron"; ctx.textAlign = "center";
+        ctx.fillText(phase === "memorize" ? "REMEMBER THE LIT CELLS" : "TAP EVERY CELL YOU SAW", W / 2, H - 16);
+
+        rafRef.current = requestAnimationFrame(loop);
+      }
+      rafRef.current = requestAnimationFrame(loop);
+      return () => {
+        cleanedUp = true;
+        canvas.removeEventListener("click", onClick);
+        canvas.removeEventListener("touchstart", onTouch);
+        cancelAnimationFrame(rafRef.current);
+      };
+    }
+
+    // ─────────────────────────────────────────────────────
+    // BREAKER ENGINE — paddle + ball + breakable blocks
+    // ─────────────────────────────────────────────────────
+    if (engine === "breaker") {
+      const PADDLE_W = 72, PADDLE_H = 12, PADDLE_Y = H - 44;
+      let paddleX = W / 2;
+      const BALL_R = 7;
+      let ballX = W / 2, ballY = PADDLE_Y - 30;
+      let ballVX = 3, ballVY = -4.5;
+      const BCOLS = ["#a855f7", "#06b6d4", "#f59e0b", "#10b981", "#ec4899"];
+      interface Brick { x: number; y: number; w: number; h: number; color: string; alive: boolean; }
+      let bricks: Brick[] = [];
+      let flashText = "", flashColor = "#fff", flashTimer = 0;
+      const ROWS = 4, COLS = 6, TOP = 72;
+
+      function buildBricks() {
+        bricks = [];
+        const bw = (W - 20) / COLS, bh = 20;
+        for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+          bricks.push({ x: 10 + c * bw, y: TOP + r * (bh + 6), w: bw - 6, h: bh, color: BCOLS[r % BCOLS.length], alive: true });
+        }
+      }
+      buildBricks();
+
+      function resetBall() {
+        const sp = 4.5 + scoreRef.current / 220;
+        ballX = paddleX; ballY = PADDLE_Y - 30;
+        ballVX = (Math.random() < 0.5 ? -1 : 1) * sp * 0.6; ballVY = -sp;
+      }
+
+      const movePaddle = (x: number) => { paddleX = Math.max(PADDLE_W / 2, Math.min(W - PADDLE_W / 2, x)); };
+      const onClick = (e: MouseEvent) => movePaddle(getXY(e).x);
+      const onMove = (e: MouseEvent) => movePaddle(getXY(e).x);
+      const onTouch = (e: TouchEvent) => { e.preventDefault(); movePaddle(getXY(e).x); };
+      const onTouchMove = (e: TouchEvent) => { e.preventDefault(); movePaddle(getXY(e).x); };
+      canvas.addEventListener("click", onClick);
+      canvas.addEventListener("mousemove", onMove);
+      canvas.addEventListener("touchstart", onTouch, { passive: false });
+      canvas.addEventListener("touchmove", onTouchMove, { passive: false });
+
+      function loop() {
+        ctx.fillStyle = "#03030b"; ctx.fillRect(0, 0, W, H);
+        const sp = 4.5 + scoreRef.current / 220;
+
+        ballX += ballVX; ballY += ballVY;
+        if (ballX - BALL_R < 0) { ballX = BALL_R; ballVX = Math.abs(ballVX); }
+        if (ballX + BALL_R > W) { ballX = W - BALL_R; ballVX = -Math.abs(ballVX); }
+        if (ballY - BALL_R < 0) { ballY = BALL_R; ballVY = Math.abs(ballVY); }
+
+        if (ballVY > 0 && ballY + BALL_R >= PADDLE_Y && ballY + BALL_R <= PADDLE_Y + PADDLE_H + 10 &&
+            ballX >= paddleX - PADDLE_W / 2 && ballX <= paddleX + PADDLE_W / 2) {
+          ballVY = -Math.abs(ballVY);
+          const off = (ballX - paddleX) / (PADDLE_W / 2);
+          ballVX = off * sp; playHit();
+        }
+
+        if (ballY - BALL_R > H) {
+          updateScore(-cfg.wrongHitPenalty); flashText = "BALL LOST!"; flashColor = "#ef4444"; flashTimer = 24; playMiss(); resetBall();
+        }
+
+        let aliveCount = 0;
+        for (const b of bricks) {
+          if (!b.alive) continue; aliveCount++;
+          if (ballX + BALL_R > b.x && ballX - BALL_R < b.x + b.w && ballY + BALL_R > b.y && ballY - BALL_R < b.y + b.h) {
+            b.alive = false; ballVY *= -1;
+            updateScore(cfg.correctHitValue); flashText = "BREAK!"; flashColor = "#10b981"; flashTimer = 10; playHit();
+            break;
+          }
+        }
+        if (aliveCount === 0) { buildBricks(); flashText = "CLEARED!"; flashColor = "#f59e0b"; flashTimer = 26; playPerfect(); }
+
+        for (const b of bricks) {
+          if (!b.alive) continue;
+          ctx.fillStyle = b.color + "cc"; ctx.shadowColor = b.color; ctx.shadowBlur = 8;
+          ctx.beginPath(); ctx.roundRect(b.x, b.y, b.w, b.h, 4); ctx.fill(); ctx.shadowBlur = 0;
+        }
+
+        ctx.fillStyle = "#a855f7"; ctx.shadowColor = "#a855f7"; ctx.shadowBlur = 14;
+        ctx.beginPath(); ctx.roundRect(paddleX - PADDLE_W / 2, PADDLE_Y, PADDLE_W, PADDLE_H, 6); ctx.fill(); ctx.shadowBlur = 0;
+
+        ctx.fillStyle = "#06b6d4"; ctx.shadowColor = "#06b6d4"; ctx.shadowBlur = 16;
+        ctx.beginPath(); ctx.arc(ballX, ballY, BALL_R, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+
+        if (flashTimer > 0) {
+          ctx.globalAlpha = flashTimer / 26; ctx.font = "bold 18px Orbitron"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          ctx.fillStyle = flashColor; ctx.shadowColor = flashColor; ctx.shadowBlur = 22;
+          ctx.fillText(flashText, W / 2, H * 0.55); ctx.shadowBlur = 0; ctx.globalAlpha = 1; flashTimer--;
+        }
+        ctx.fillStyle = "rgba(255,255,255,0.15)"; ctx.font = "9px Orbitron"; ctx.textAlign = "center";
+        ctx.fillText("MOVE PADDLE TO KEEP THE BALL IN PLAY", W / 2, H - 14);
+
+        rafRef.current = requestAnimationFrame(loop);
+      }
+      rafRef.current = requestAnimationFrame(loop);
+      return () => {
+        canvas.removeEventListener("click", onClick);
+        canvas.removeEventListener("mousemove", onMove);
+        canvas.removeEventListener("touchstart", onTouch);
+        canvas.removeEventListener("touchmove", onTouchMove);
+        cancelAnimationFrame(rafRef.current);
+      };
+    }
+
+    // ─────────────────────────────────────────────────────
+    // DODGE ENGINE — 3-lane auto-runner, switch lanes
+    // ─────────────────────────────────────────────────────
+    if (engine === "dodge") {
+      const LANES = 3, LW = W / LANES;
+      let playerLane = 1;
+      const PLAYER_Y = H - 90;
+      let bars: { y: number; blocked: boolean[]; passed: boolean; color: string }[] = [];
+      let spawnT = 0;
+      let flashText = "", flashColor = "#fff", flashTimer = 0;
+      let hitFlash = 0;
+      const BARCOLS = ["#ef4444", "#f97316", "#ec4899", "#a855f7"];
+
+      function spawnBar() {
+        const blocked = [false, false, false];
+        const openLane = Math.floor(Math.random() * LANES);
+        for (let i = 0; i < LANES; i++) blocked[i] = i !== openLane && Math.random() < 0.85;
+        if (!blocked.some((b) => b)) blocked[(openLane + 1) % LANES] = true;
+        bars.push({ y: -30, blocked, passed: false, color: BARCOLS[Math.floor(Math.random() * BARCOLS.length)] });
+      }
+
+      const switchLane = (dir: number) => { playerLane = Math.max(0, Math.min(LANES - 1, playerLane + dir)); };
+      const onClick = (e: MouseEvent) => switchLane(getXY(e).x < W / 2 ? -1 : 1);
+      const onTouch = (e: TouchEvent) => { e.preventDefault(); switchLane(getXY(e).x < W / 2 ? -1 : 1); };
+      canvas.addEventListener("click", onClick);
+      canvas.addEventListener("touchstart", onTouch, { passive: false });
+
+      function loop() {
+        ctx.fillStyle = "#03030b"; ctx.fillRect(0, 0, W, H);
+
+        ctx.setLineDash([6, 10]);
+        for (let i = 1; i < LANES; i++) {
+          ctx.strokeStyle = "rgba(168,85,247,0.1)"; ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(i * LW, 0); ctx.lineTo(i * LW, H); ctx.stroke();
+        }
+        ctx.setLineDash([]);
+
+        const speed = 4 + scoreRef.current / 110;
+        spawnT++;
+        if (spawnT >= Math.max(42, 90 - Math.floor(scoreRef.current / 40))) { spawnBar(); spawnT = 0; }
+
+        for (let i = bars.length - 1; i >= 0; i--) {
+          const b = bars[i]; b.y += speed;
+          if (!b.passed && b.y >= PLAYER_Y - 18 && b.y <= PLAYER_Y + 18) {
+            if (b.blocked[playerLane]) { updateScore(-cfg.wrongHitPenalty); flashText = "CRASH!"; flashColor = "#ef4444"; flashTimer = 22; hitFlash = 18; playMiss(); }
+            else { updateScore(cfg.correctHitValue); flashText = "DODGE!"; flashColor = "#10b981"; flashTimer = 14; playHit(); }
+            b.passed = true;
+          }
+          if (b.y > H + 30) { bars.splice(i, 1); continue; }
+          for (let l = 0; l < LANES; l++) {
+            if (!b.blocked[l]) continue;
+            ctx.fillStyle = b.color + "bb"; ctx.shadowColor = b.color; ctx.shadowBlur = 10;
+            ctx.beginPath(); ctx.roundRect(l * LW + 6, b.y - 14, LW - 12, 28, 6); ctx.fill(); ctx.shadowBlur = 0;
+          }
+        }
+
+        const px = playerLane * LW + LW / 2;
+        if (hitFlash > 0) { ctx.strokeStyle = `rgba(239,68,68,${hitFlash / 18})`; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(px, PLAYER_Y, 22, 0, Math.PI * 2); ctx.stroke(); hitFlash--; }
+        ctx.fillStyle = "#06b6d4"; ctx.shadowColor = "#06b6d4"; ctx.shadowBlur = 18;
+        ctx.beginPath(); ctx.moveTo(px, PLAYER_Y - 14); ctx.lineTo(px - 12, PLAYER_Y + 12); ctx.lineTo(px + 12, PLAYER_Y + 12); ctx.closePath(); ctx.fill(); ctx.shadowBlur = 0;
+
+        if (flashTimer > 0) {
+          ctx.globalAlpha = flashTimer / 22; ctx.font = "bold 20px Orbitron"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          ctx.fillStyle = flashColor; ctx.shadowColor = flashColor; ctx.shadowBlur = 24;
+          ctx.fillText(flashText, W / 2, H * 0.3); ctx.shadowBlur = 0; ctx.globalAlpha = 1; flashTimer--;
+        }
+        ctx.fillStyle = "rgba(255,255,255,0.15)"; ctx.font = "9px Orbitron"; ctx.textAlign = "center";
+        ctx.fillText("TAP LEFT / RIGHT TO SWITCH LANES", W / 2, H - 16);
+
+        rafRef.current = requestAnimationFrame(loop);
+      }
+      rafRef.current = requestAnimationFrame(loop);
+      return () => { canvas.removeEventListener("click", onClick); canvas.removeEventListener("touchstart", onTouch); cancelAnimationFrame(rafRef.current); };
+    }
+
+    // ─────────────────────────────────────────────────────
+    // BALANCE ENGINE — tilt a beam, keep the ball centered
+    // ─────────────────────────────────────────────────────
+    if (engine === "balance") {
+      const PIVOT_X = W / 2, PIVOT_Y = H * 0.6, BEAM_LEN = W * 0.72;
+      let tilt = 0, tiltVel = 0;
+      let ballPos = 0, ballVel = 0;
+      let flashText = "", flashColor = "#fff", flashTimer = 0;
+      let centeredTicks = 0;
+      let resetFlash = 0;
+      let spawnT = 0;
+
+      const push = (dir: number) => { tiltVel += dir * 0.014; };
+      const onClick = (e: MouseEvent) => push(getXY(e).x < W / 2 ? -1 : 1);
+      const onTouch = (e: TouchEvent) => { e.preventDefault(); push(getXY(e).x < W / 2 ? -1 : 1); };
+      canvas.addEventListener("click", onClick);
+      canvas.addEventListener("touchstart", onTouch, { passive: false });
+
+      function loop() {
+        ctx.fillStyle = "#03030b"; ctx.fillRect(0, 0, W, H);
+
+        spawnT++;
+        const freq = Math.max(34, 90 - Math.floor(scoreRef.current / 26));
+        if (spawnT >= freq) { const side = Math.random() < 0.5 ? -1 : 1; tiltVel += side * (0.01 + Math.random() * 0.01 + scoreRef.current / 14000); spawnT = 0; }
+
+        tilt += tiltVel; tiltVel *= 0.96;
+        tilt = Math.max(-0.6, Math.min(0.6, tilt));
+        ballVel += Math.sin(tilt) * 0.6; ballVel *= 0.97;
+        ballPos += ballVel * 0.014;
+
+        if (Math.abs(ballPos) > 1) {
+          updateScore(-cfg.wrongHitPenalty); flashText = "FELL OFF!"; flashColor = "#ef4444"; flashTimer = 24; resetFlash = 18; playMiss();
+          ballPos = 0; ballVel = 0; tilt = 0; tiltVel = 0;
+        } else if (Math.abs(ballPos) < 0.35) {
+          centeredTicks++;
+          if (centeredTicks >= 30) { updateScore(cfg.correctHitValue); flashText = "BALANCED!"; flashColor = "#10b981"; flashTimer = 14; playHit(); centeredTicks = 0; }
+        } else {
+          centeredTicks = Math.max(0, centeredTicks - 1);
+        }
+
+        const dx = Math.cos(tilt) * BEAM_LEN / 2, dy = Math.sin(tilt) * BEAM_LEN / 2;
+        const x1 = PIVOT_X - dx, y1 = PIVOT_Y - dy, x2 = PIVOT_X + dx, y2 = PIVOT_Y + dy;
+
+        ctx.strokeStyle = "rgba(16,185,129,0.4)"; ctx.lineWidth = 1; ctx.setLineDash([4, 8]);
+        ctx.beginPath(); ctx.moveTo(PIVOT_X, PIVOT_Y - 40); ctx.lineTo(PIVOT_X, PIVOT_Y - 130); ctx.stroke(); ctx.setLineDash([]);
+
+        ctx.strokeStyle = "#a855f7"; ctx.lineWidth = 8; ctx.lineCap = "round"; ctx.shadowColor = "#a855f7"; ctx.shadowBlur = 14;
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.shadowBlur = 0; ctx.lineCap = "butt";
+
+        ctx.fillStyle = "#7c3aed"; ctx.beginPath(); ctx.moveTo(PIVOT_X, PIVOT_Y); ctx.lineTo(PIVOT_X - 16, PIVOT_Y + 32); ctx.lineTo(PIVOT_X + 16, PIVOT_Y + 32); ctx.closePath(); ctx.fill();
+
+        const bx = PIVOT_X + Math.cos(tilt) * (ballPos * BEAM_LEN / 2);
+        const by = PIVOT_Y + Math.sin(tilt) * (ballPos * BEAM_LEN / 2) - 14;
+        ctx.fillStyle = resetFlash > 0 ? "#ef4444" : "#06b6d4"; ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 16;
+        ctx.beginPath(); ctx.arc(bx, by, 12, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+        if (resetFlash > 0) resetFlash--;
+
+        if (flashTimer > 0) {
+          ctx.globalAlpha = flashTimer / 24; ctx.font = "bold 18px Orbitron"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          ctx.fillStyle = flashColor; ctx.shadowColor = flashColor; ctx.shadowBlur = 22;
+          ctx.fillText(flashText, W / 2, H * 0.28); ctx.shadowBlur = 0; ctx.globalAlpha = 1; flashTimer--;
+        }
+        ctx.fillStyle = "rgba(255,255,255,0.15)"; ctx.font = "9px Orbitron"; ctx.textAlign = "center";
+        ctx.fillText("TAP LEFT / RIGHT TO COUNTER THE TILT", W / 2, H - 16);
+
+        rafRef.current = requestAnimationFrame(loop);
+      }
+      rafRef.current = requestAnimationFrame(loop);
+      return () => { canvas.removeEventListener("click", onClick); canvas.removeEventListener("touchstart", onTouch); cancelAnimationFrame(rafRef.current); };
+    }
+
+    // ─────────────────────────────────────────────────────
+    // MAGNET ENGINE — drag magnet, flip polarity, grab coins
+    // ─────────────────────────────────────────────────────
+    if (engine === "magnet") {
+      let magX = W / 2, magY = H - 90;
+      let polarity = 1;
+      const MAG_R = 26;
+      interface Item { x: number; y: number; vx: number; vy: number; type: "coin" | "bomb"; color: string; }
+      let items: Item[] = [];
+      let spawnT = 0;
+      let flashText = "", flashColor = "#fff", flashTimer = 0;
+      let dragging = false, moved = false, downX = 0, downY = 0;
+
+      function spawnItem() {
+        const x = 30 + Math.random() * (W - 60);
+        const isBomb = Math.random() < 0.42;
+        items.push({ x, y: -20, vx: 0, vy: 1.5 + Math.random() * 1 + scoreRef.current / 320, type: isBomb ? "bomb" : "coin", color: isBomb ? "#ef4444" : "#f59e0b" });
+      }
+
+      const setPos = (x: number, y: number) => { magX = Math.max(MAG_R, Math.min(W - MAG_R, x)); magY = Math.max(H * 0.3, Math.min(H - 30, y)); };
+      const onDown = (e: PointerEvent) => {
+        dragging = true; moved = false;
+        const r = canvas.getBoundingClientRect();
+        downX = (e.clientX - r.left) * (W / r.width); downY = (e.clientY - r.top) * (H / r.height);
+      };
+      const onMoveP = (e: PointerEvent) => {
+        if (!dragging) return;
+        const r = canvas.getBoundingClientRect();
+        const x = (e.clientX - r.left) * (W / r.width), y = (e.clientY - r.top) * (H / r.height);
+        if (Math.abs(x - downX) > 6 || Math.abs(y - downY) > 6) moved = true;
+        setPos(x, y);
+      };
+      const onUp = () => {
+        if (dragging && !moved) {
+          polarity *= -1;
+          playTone(polarity > 0 ? 440 : 320, 0.1, "square", 0.15);
+          flashText = polarity > 0 ? "ATTRACT" : "REPEL"; flashColor = polarity > 0 ? "#f59e0b" : "#06b6d4"; flashTimer = 18;
+        }
+        dragging = false;
+      };
+      canvas.addEventListener("pointerdown", onDown);
+      canvas.addEventListener("pointermove", onMoveP);
+      canvas.addEventListener("pointerup", onUp);
+
+      function loop() {
+        ctx.fillStyle = "#03030b"; ctx.fillRect(0, 0, W, H);
+        spawnT++;
+        if (spawnT >= Math.max(26, 70 - Math.floor(scoreRef.current / 40))) { spawnItem(); spawnT = 0; }
+
+        for (let i = items.length - 1; i >= 0; i--) {
+          const it = items[i];
+          const dx = magX - it.x, dy = magY - it.y, d = Math.hypot(dx, dy) || 1;
+          if (d < 175) { const f = polarity * 0.6 * (175 - d) / 175; it.vx += (dx / d) * f; it.vy += (dy / d) * f; }
+          it.x += it.vx; it.y += it.vy; it.vy += 0.02;
+
+          if (d < MAG_R + 12) {
+            if (it.type === "coin") { updateScore(cfg.correctHitValue); flashText = "+COIN"; flashColor = "#f59e0b"; flashTimer = 12; playHit(); }
+            else { updateScore(-cfg.wrongHitPenalty); flashText = "BOMB!"; flashColor = "#ef4444"; flashTimer = 22; playMiss(); }
+            items.splice(i, 1); continue;
+          }
+          if (it.y > H + 30 || it.x < -30 || it.x > W + 30) { items.splice(i, 1); continue; }
+
+          ctx.fillStyle = it.color; ctx.shadowColor = it.color; ctx.shadowBlur = 12;
+          ctx.beginPath(); ctx.arc(it.x, it.y, it.type === "coin" ? 9 : 10, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+          ctx.fillStyle = "#fff"; ctx.font = "bold 10px Orbitron"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          ctx.fillText(it.type === "coin" ? "$" : "✦", it.x, it.y);
+        }
+
+        const mc = polarity > 0 ? "#f59e0b" : "#06b6d4";
+        ctx.strokeStyle = mc + "40"; ctx.lineWidth = 1;
+        for (let k = 1; k <= 3; k++) { ctx.beginPath(); ctx.arc(magX, magY, MAG_R + k * 18, 0, Math.PI * 2); ctx.stroke(); }
+        ctx.fillStyle = mc; ctx.shadowColor = mc; ctx.shadowBlur = 22;
+        ctx.beginPath(); ctx.arc(magX, magY, MAG_R, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+        ctx.fillStyle = "#03030b"; ctx.font = "bold 18px Orbitron"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(polarity > 0 ? "+" : "−", magX, magY);
+
+        if (flashTimer > 0) {
+          ctx.globalAlpha = flashTimer / 22; ctx.font = "bold 18px Orbitron"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          ctx.fillStyle = flashColor; ctx.shadowColor = flashColor; ctx.shadowBlur = 22;
+          ctx.fillText(flashText, W / 2, 40); ctx.shadowBlur = 0; ctx.globalAlpha = 1; flashTimer--;
+        }
+        ctx.fillStyle = "rgba(255,255,255,0.15)"; ctx.font = "9px Orbitron"; ctx.textAlign = "center";
+        ctx.fillText("DRAG TO MOVE — TAP TO FLIP POLARITY", W / 2, H - 14);
+
+        rafRef.current = requestAnimationFrame(loop);
+      }
+      rafRef.current = requestAnimationFrame(loop);
+      return () => {
+        canvas.removeEventListener("pointerdown", onDown);
+        canvas.removeEventListener("pointermove", onMoveP);
+        canvas.removeEventListener("pointerup", onUp);
+        cancelAnimationFrame(rafRef.current);
+      };
+    }
+
+    // ─────────────────────────────────────────────────────
+    // TRACE ENGINE — drag through numbered nodes in order
+    // ─────────────────────────────────────────────────────
+    if (engine === "trace") {
+      interface Node { x: number; y: number; order: number; }
+      let nodes: Node[] = [];
+      let nextIdx = 0;
+      let dragging = false;
+      let lastHit = -1;
+      let path: { x: number; y: number }[] = [];
+      let flashText = "", flashColor = "#fff", flashTimer = 0;
+
+      function buildChain() {
+        const count = Math.min(8, 4 + Math.floor(scoreRef.current / 110));
+        nodes = []; nextIdx = 0; path = []; lastHit = -1;
+        for (let i = 0; i < count; i++) {
+          let x = 0, y = 0, ok = false, tries = 0;
+          while (!ok && tries < 60) {
+            x = 40 + Math.random() * (W - 80); y = 90 + Math.random() * (H - 180);
+            ok = nodes.every((n) => Math.hypot(n.x - x, n.y - y) > 62); tries++;
+          }
+          nodes.push({ x, y, order: i });
+        }
+      }
+      buildChain();
+
+      function nodeAt(x: number, y: number): number { return nodes.findIndex((n) => Math.hypot(n.x - x, n.y - y) < 24); }
+
+      function check(x: number, y: number) {
+        const idx = nodeAt(x, y);
+        if (idx < 0) { lastHit = -1; return; }
+        if (idx === lastHit) return;
+        lastHit = idx;
+        const n = nodes[idx];
+        if (n.order < nextIdx) return;
+        if (n.order === nextIdx) {
+          updateScore(cfg.correctHitValue); playHit(); nextIdx++;
+          flashText = "LINK!"; flashColor = "#10b981"; flashTimer = 10;
+          if (nextIdx >= nodes.length) { flashText = "CHAIN COMPLETE!"; flashColor = "#f59e0b"; flashTimer = 28; playPerfect(); buildChain(); }
+        } else {
+          updateScore(-cfg.wrongHitPenalty); playMiss();
+          flashText = "WRONG ORDER"; flashColor = "#ef4444"; flashTimer = 20;
+        }
+      }
+
+      const onDown = (e: PointerEvent) => {
+        dragging = true; lastHit = -1;
+        const r = canvas.getBoundingClientRect();
+        const x = (e.clientX - r.left) * (W / r.width), y = (e.clientY - r.top) * (H / r.height);
+        path = [{ x, y }]; check(x, y);
+      };
+      const onMoveP = (e: PointerEvent) => {
+        if (!dragging) return;
+        const r = canvas.getBoundingClientRect();
+        const x = (e.clientX - r.left) * (W / r.width), y = (e.clientY - r.top) * (H / r.height);
+        path.push({ x, y }); if (path.length > 40) path.shift();
+        check(x, y);
+      };
+      const onUp = () => { dragging = false; lastHit = -1; path = []; };
+      canvas.addEventListener("pointerdown", onDown);
+      canvas.addEventListener("pointermove", onMoveP);
+      canvas.addEventListener("pointerup", onUp);
+
+      function loop() {
+        ctx.fillStyle = "#03030b"; ctx.fillRect(0, 0, W, H);
+
+        ctx.font = "bold 10px Orbitron"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillStyle = "#a855f7"; ctx.shadowColor = "#a855f7"; ctx.shadowBlur = 10;
+        ctx.fillText(`TRACE ${nextIdx}/${nodes.length}`, W / 2, 34); ctx.shadowBlur = 0;
+
+        ctx.strokeStyle = "rgba(16,185,129,0.5)"; ctx.lineWidth = 3; ctx.shadowColor = "#10b981"; ctx.shadowBlur = 8;
+        for (let i = 0; i < nextIdx - 1; i++) {
+          const a = nodes.find((n) => n.order === i), b = nodes.find((n) => n.order === i + 1);
+          if (a && b) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
+        }
+        ctx.shadowBlur = 0;
+
+        for (const n of nodes) {
+          const done = n.order < nextIdx, isNext = n.order === nextIdx;
+          const col = done ? "#10b981" : isNext ? "#f59e0b" : "#a855f7";
+          const pulse = isNext ? 0.7 + Math.sin(Date.now() * 0.006) * 0.3 : 1;
+          ctx.fillStyle = col + (done ? "cc" : "22"); ctx.strokeStyle = col; ctx.lineWidth = 2.5;
+          ctx.shadowColor = col; ctx.shadowBlur = (isNext ? 22 : 10) * pulse;
+          ctx.beginPath(); ctx.arc(n.x, n.y, 18, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(n.x, n.y, 18, 0, Math.PI * 2); ctx.stroke(); ctx.shadowBlur = 0;
+          ctx.fillStyle = done ? "#03030b" : "#fff"; ctx.font = "bold 12px Orbitron"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          ctx.fillText(String(n.order + 1), n.x, n.y);
+        }
+
+        if (path.length >= 2) {
+          ctx.strokeStyle = "rgba(6,182,212,0.6)"; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(path[0].x, path[0].y); for (const p of path) ctx.lineTo(p.x, p.y); ctx.stroke();
+        }
+
+        if (flashTimer > 0) {
+          ctx.globalAlpha = flashTimer / 28; ctx.font = "bold 18px Orbitron"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          ctx.fillStyle = flashColor; ctx.shadowColor = flashColor; ctx.shadowBlur = 22;
+          ctx.fillText(flashText, W / 2, H - 50); ctx.shadowBlur = 0; ctx.globalAlpha = 1; flashTimer--;
+        }
+        ctx.fillStyle = "rgba(255,255,255,0.15)"; ctx.font = "9px Orbitron"; ctx.textAlign = "center";
+        ctx.fillText("DRAG THROUGH THE NODES IN NUMBER ORDER", W / 2, H - 16);
+
+        rafRef.current = requestAnimationFrame(loop);
+      }
+      rafRef.current = requestAnimationFrame(loop);
+      return () => {
+        canvas.removeEventListener("pointerdown", onDown);
+        canvas.removeEventListener("pointermove", onMoveP);
+        canvas.removeEventListener("pointerup", onUp);
+        cancelAnimationFrame(rafRef.current);
+      };
+    }
+
+    // ─────────────────────────────────────────────────────
+    // BUBBLE ENGINE — steer a rising bubble through gaps
+    // ─────────────────────────────────────────────────────
+    if (engine === "bubble") {
+      let bubX = W / 2; const bubY = H * 0.62, BUB_R = 14;
+      interface Row { y: number; gapX: number; gapW: number; passed: boolean; }
+      let rows: Row[] = [];
+      let spawnT = 0;
+      let flashText = "", flashColor = "#fff", flashTimer = 0;
+      let flash = 0;
+      let dragging = false;
+
+      function spawnRow() {
+        const gapW = Math.max(50, 92 - Math.floor(scoreRef.current / 40));
+        const gapX = 20 + Math.random() * (W - 40 - gapW);
+        rows.push({ y: -20, gapX, gapW, passed: false });
+      }
+
+      function drawSpikeRow(rw: Row) {
+        ctx.fillStyle = "#ef444488"; ctx.strokeStyle = "#ef4444"; ctx.shadowColor = "#ef4444"; ctx.shadowBlur = 6;
+        const segs: [number, number][] = [[0, rw.gapX], [rw.gapX + rw.gapW, W]];
+        for (const [sx, ex] of segs) {
+          if (ex <= sx) continue;
+          ctx.beginPath(); ctx.rect(sx, rw.y - 8, ex - sx, 16); ctx.fill();
+          for (let tx = sx; tx < ex; tx += 10) {
+            ctx.beginPath(); ctx.moveTo(tx, rw.y + 8); ctx.lineTo(tx + 5, rw.y + 15); ctx.lineTo(tx + 10, rw.y + 8); ctx.closePath(); ctx.fill();
+          }
+        }
+        ctx.shadowBlur = 0;
+      }
+
+      const moveX = (x: number) => { bubX = Math.max(BUB_R, Math.min(W - BUB_R, x)); };
+      const onDown = (e: PointerEvent) => { dragging = true; const r = canvas.getBoundingClientRect(); moveX((e.clientX - r.left) * (W / r.width)); };
+      const onMoveP = (e: PointerEvent) => { if (!dragging) return; const r = canvas.getBoundingClientRect(); moveX((e.clientX - r.left) * (W / r.width)); };
+      const onUp = () => { dragging = false; };
+      canvas.addEventListener("pointerdown", onDown);
+      canvas.addEventListener("pointermove", onMoveP);
+      canvas.addEventListener("pointerup", onUp);
+
+      function loop() {
+        ctx.fillStyle = "#03030b"; ctx.fillRect(0, 0, W, H);
+        const speed = 2.5 + scoreRef.current / 120;
+
+        spawnT++;
+        if (spawnT >= Math.max(46, 100 - Math.floor(scoreRef.current / 30))) { spawnRow(); spawnT = 0; }
+
+        for (let i = rows.length - 1; i >= 0; i--) {
+          const rw = rows[i]; rw.y += speed;
+          if (!rw.passed && rw.y >= bubY - BUB_R && rw.y <= bubY + BUB_R) {
+            const inGap = bubX - BUB_R > rw.gapX && bubX + BUB_R < rw.gapX + rw.gapW;
+            if (inGap) { updateScore(cfg.correctHitValue); flashText = "THROUGH!"; flashColor = "#10b981"; flashTimer = 14; playHit(); }
+            else { updateScore(-cfg.wrongHitPenalty); flashText = "POP!"; flashColor = "#ef4444"; flashTimer = 22; flash = 18; playMiss(); bubX = W / 2; }
+            rw.passed = true;
+          }
+          if (rw.y > H + 20) { rows.splice(i, 1); continue; }
+          drawSpikeRow(rw);
+        }
+
+        const bc = flash > 0 ? "#ef4444" : "#06b6d4";
+        ctx.strokeStyle = bc; ctx.lineWidth = 2.5; ctx.fillStyle = bc + "22"; ctx.shadowColor = bc; ctx.shadowBlur = 16;
+        ctx.beginPath(); ctx.arc(bubX, bubY, BUB_R, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(bubX, bubY, BUB_R, 0, Math.PI * 2); ctx.stroke(); ctx.shadowBlur = 0;
+        ctx.fillStyle = "rgba(255,255,255,0.5)"; ctx.beginPath(); ctx.arc(bubX - 5, bubY - 5, 4, 0, Math.PI * 2); ctx.fill();
+        if (flash > 0) flash--;
+
+        if (flashTimer > 0) {
+          ctx.globalAlpha = flashTimer / 22; ctx.font = "bold 18px Orbitron"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          ctx.fillStyle = flashColor; ctx.shadowColor = flashColor; ctx.shadowBlur = 22;
+          ctx.fillText(flashText, W / 2, H * 0.28); ctx.shadowBlur = 0; ctx.globalAlpha = 1; flashTimer--;
+        }
+        ctx.fillStyle = "rgba(255,255,255,0.15)"; ctx.font = "9px Orbitron"; ctx.textAlign = "center";
+        ctx.fillText("DRAG TO STEER THE BUBBLE THROUGH GAPS", W / 2, H - 14);
+
+        rafRef.current = requestAnimationFrame(loop);
+      }
+      rafRef.current = requestAnimationFrame(loop);
+      return () => {
+        canvas.removeEventListener("pointerdown", onDown);
+        canvas.removeEventListener("pointermove", onMoveP);
+        canvas.removeEventListener("pointerup", onUp);
+        cancelAnimationFrame(rafRef.current);
+      };
+    }
+
+    // ─────────────────────────────────────────────────────
     // 9. SIMON ENGINE — memory sequence grid
     // ─────────────────────────────────────────────────────
     if (engine === "simon") {
@@ -1417,7 +2092,7 @@ export default function Play() {
     // ─────────────────────────────────────────────────────
     // 10. SHIELD ENGINE — rotate shield, deflect projectiles
     // ─────────────────────────────────────────────────────
-    {
+    if (engine === "shield") {
       const CX = W / 2, CY = H / 2 - 10;
       const CORE_R = 22, SHIELD_R = 85;
       const SHIELD_ARC = Math.PI * 0.28; // ~50° arc — harder to block
@@ -1591,6 +2266,11 @@ export default function Play() {
       rafRef.current = requestAnimationFrame(loop);
       return () => { canvas.removeEventListener("click", onClick); canvas.removeEventListener("touchstart", onTouch); cancelAnimationFrame(rafRef.current); };
     }
+
+    // Safety guard — getEngine always returns a mapped engine with a block above
+    // (simon is the documented fallback). This unconditional return keeps every
+    // code path returning a cleanup so the effect type-checks cleanly.
+    return () => { cancelAnimationFrame(rafRef.current); };
   }, [gameState, config, game]);
 
   if (!config || !game) {
@@ -1609,6 +2289,8 @@ export default function Play() {
     rhythm: "RHYTHM LANE", pendulum: "VAULT DIAL", powerbar: "POWER BAR",
     meteor: "METEOR CATCH", laser: "LASER GATE", stack: "STACK BLOCK",
     gravity: "GRAVITY FLIP", slasher: "BOT SLASHER", simon: "CRYPTO SEQ", shield: "SHIELD ARC",
+    grid: "MEMORY GRID", breaker: "BLOCK BREAKER", dodge: "LANE DODGE", balance: "BALANCE BEAM",
+    magnet: "POLARITY MAGNET", trace: "NODE TRACE", bubble: "BUBBLE DRIFT",
   };
 
   const comboMultiplier = combo > 0 ? Math.min(4, 1 + Math.floor(combo / 4) * 0.5) : 1;

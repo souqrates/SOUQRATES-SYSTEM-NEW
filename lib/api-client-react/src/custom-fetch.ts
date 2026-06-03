@@ -17,6 +17,17 @@ const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 
 let _baseUrl: string | null = null;
 let _authTokenGetter: AuthTokenGetter | null = null;
+let _initDataGetter: (() => string | null) | null = null;
+
+/**
+ * Register a getter that supplies the Telegram WebApp `initData` string.
+ * When it returns a non-empty value, an `X-Telegram-Init-Data` header is
+ * attached to every request so the server can verify the caller's identity.
+ * Pass `null` to clear the getter.
+ */
+export function setInitDataGetter(getter: (() => string | null) | null): void {
+  _initDataGetter = getter;
+}
 
 /**
  * Set a base URL that is prepended to every relative request URL
@@ -355,6 +366,14 @@ export async function customFetch<T = unknown>(
     const token = await _authTokenGetter();
     if (token) {
       headers.set("authorization", `Bearer ${token}`);
+    }
+  }
+
+  // Attach Telegram initData so the server can verify the caller's identity.
+  if (_initDataGetter && !headers.has("x-telegram-init-data")) {
+    const initData = _initDataGetter();
+    if (initData) {
+      headers.set("x-telegram-init-data", initData);
     }
   }
 

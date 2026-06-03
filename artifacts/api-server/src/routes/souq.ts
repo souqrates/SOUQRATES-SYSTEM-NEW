@@ -2,15 +2,18 @@ import { Router } from "express";
 import { db, souqProductsTable, souqPurchasesTable, usersTable } from "@workspace/db";
 import { eq, and, ilike, or, sql, desc } from "drizzle-orm";
 import { processReferralCommissions, getSettings } from "../lib/referralCommissions";
+import { requireAdmin, requireAuth } from "../lib/auth";
 import {
   ListSouqProductsQueryParams,
   CreateSouqProductBody,
   UpdateSouqProductBody,
   PurchaseSouqProductBody,
-  GetMySouqLibraryQueryParams,
 } from "@workspace/api-zod";
 
 const router = Router();
+
+/** Thrown inside the purchase transaction to map to a 400 response. */
+class PurchaseError extends Error {}
 
 router.get("/products", async (req, res) => {
   const parsed = ListSouqProductsQueryParams.safeParse(req.query);
@@ -46,7 +49,7 @@ router.get("/products", async (req, res) => {
   res.json(products.map(formatProduct));
 });
 
-router.post("/products", async (req, res) => {
+router.post("/products", requireAdmin, async (req, res) => {
   const parsed = CreateSouqProductBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid input", details: parsed.error.issues });
@@ -74,7 +77,7 @@ router.post("/products", async (req, res) => {
 });
 
 router.get("/products/:productId", async (req, res) => {
-  const productId = parseInt(req.params.productId);
+  const productId = parseInt(String(req.params.productId));
   if (isNaN(productId)) {
     res.status(400).json({ error: "Invalid product ID" });
     return;
@@ -89,8 +92,8 @@ router.get("/products/:productId", async (req, res) => {
   res.json(formatProduct(product));
 });
 
-router.patch("/products/:productId", async (req, res) => {
-  const productId = parseInt(req.params.productId);
+router.patch("/products/:productId", requireAdmin, async (req, res) => {
+  const productId = parseInt(String(req.params.productId));
   if (isNaN(productId)) {
     res.status(400).json({ error: "Invalid product ID" });
     return;
@@ -133,8 +136,8 @@ router.patch("/products/:productId", async (req, res) => {
   res.json(formatProduct(updated));
 });
 
-router.delete("/products/:productId", async (req, res) => {
-  const productId = parseInt(req.params.productId);
+router.delete("/products/:productId", requireAdmin, async (req, res) => {
+  const productId = parseInt(String(req.params.productId));
   if (isNaN(productId)) {
     res.status(400).json({ error: "Invalid product ID" });
     return;
@@ -144,20 +147,15 @@ router.delete("/products/:productId", async (req, res) => {
   res.json({ success: true });
 });
 
-router.post("/purchase/:productId", async (req, res) => {
-  const productId = parseInt(req.params.productId);
+router.post("/purchase/:productId", requireAuth, async (req, res) => {
+  const productId = parseInt(String(req.params.productId));
   if (isNaN(productId)) {
     res.status(400).json({ error: "Invalid product ID" });
     return;
   }
 
-  const parsed = PurchaseSouqProductBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Invalid input" });
-    return;
-  }
-
-  const { telegramId } = parsed.data;
+  // Buyer is always the authenticated user, never taken from the client body.
+  const telegramId = req.auth!.telegramId;
 
   const [product] = await db.select().from(souqProductsTable).where(and(eq(souqProductsTable.id, productId), eq(souqProductsTable.isActive, true)));
   if (!product) {
@@ -172,62 +170,61 @@ router.post("/purchase/:productId", async (req, res) => {
   }
 
   const price = parseFloat(product.price);
-  const balance = parseFloat(user.skzBalance);
 
-  if (balance < price) {
-    res.status(400).json({ error: "Insufficient SKZ balance" });
-    return;
-  }
-
-  const alreadyPurchased = await db.select({ id: souqPurchasesTable.id })
-    .from(souqPurchasesTable)
-    .where(and(eq(souqPurchasesTable.userId, user.id), eq(souqPurchasesTable.productId, productId)));
-
-  if (alreadyPurchased.length > 0) {
-    res.status(400).json({ error: "Already purchased" });
-    return;
-  }
-
-  const newBalance = balance - price;
-
-  await db.update(usersTable).set({ skzBalance: String(newBalance) }).where(eq(usersTable.id, user.id));
-
-  const [purchase] = await db.insert(souqPurchasesTable).values({
-    userId: user.id,
-    productId,
-    pricePaid: String(price),
-  }).returning();
-
-  await db.update(souqProductsTable)
-    .set({ totalSales: product.totalSales + 1 })
-    .where(eq(souqProductsTable.id, productId));
-
-  // Process referral commissions on book purchase
   try {
-    const settings = await getSettings();
-    await processReferralCommissions(user.id, price, settings, `book purchase #${productId}`);
-  } catch (commErr) {
-    req.log.error({ commErr }, "Failed to process referral commissions for purchase");
-  }
+    const result = await db.transaction(async (tx) => {
+      // Reject duplicate purchases inside the transaction.
+      const alreadyPurchased = await tx.select({ id: souqPurchasesTable.id })
+        .from(souqPurchasesTable)
+        .where(and(eq(souqPurchasesTable.userId, user.id), eq(souqPurchasesTable.productId, productId)));
+      if (alreadyPurchased.length > 0) throw new PurchaseError("Already purchased");
 
-  res.json({
-    success: true,
-    purchaseId: purchase.id,
-    productId,
-    pricePaid: price,
-    newBalance,
-    fileUrl: product.fileUrl,
-  });
+      // Atomic debit: only succeeds if the buyer still has the funds.
+      const debited = await tx
+        .update(usersTable)
+        .set({ skzBalance: sql`${usersTable.skzBalance} - ${price}` })
+        .where(and(eq(usersTable.id, user.id), sql`${usersTable.skzBalance} >= ${price}`))
+        .returning({ balance: usersTable.skzBalance });
+      if (debited.length === 0) throw new PurchaseError("Insufficient SKZ balance");
+
+      const [purchase] = await tx.insert(souqPurchasesTable).values({
+        userId: user.id,
+        productId,
+        pricePaid: String(price),
+      }).returning();
+
+      await tx.update(souqProductsTable)
+        .set({ totalSales: sql`${souqProductsTable.totalSales} + 1` })
+        .where(eq(souqProductsTable.id, productId));
+
+      // Referral commissions must commit/roll back with the purchase.
+      const settings = await getSettings();
+      await processReferralCommissions(tx, user.id, price, settings, `book purchase #${productId}`);
+
+      return { purchaseId: purchase.id, newBalance: parseFloat(debited[0].balance) };
+    });
+
+    res.json({
+      success: true,
+      purchaseId: result.purchaseId,
+      productId,
+      pricePaid: price,
+      newBalance: result.newBalance,
+      fileUrl: product.fileUrl,
+    });
+  } catch (err) {
+    if (err instanceof PurchaseError) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    req.log.error({ err }, "Error processing souq purchase");
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
-router.get("/my-library", async (req, res) => {
-  const parsed = GetMySouqLibraryQueryParams.safeParse(req.query);
-  if (!parsed.success) {
-    res.status(400).json({ error: "Invalid query params" });
-    return;
-  }
-
-  const { telegram_id } = parsed.data;
+router.get("/my-library", requireAuth, async (req, res) => {
+  // Owner is always the authenticated user, never taken from the client query.
+  const telegram_id = req.auth!.telegramId;
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.telegramId, telegram_id));
   if (!user) {

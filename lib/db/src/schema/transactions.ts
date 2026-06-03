@@ -1,10 +1,11 @@
-import { pgTable, text, serial, timestamp, numeric, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, numeric, integer, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
+import { usersTable } from "./users";
 
 export const transactionsTable = pgTable("transactions", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
+  userId: integer("user_id").notNull().references(() => usersTable.id),
   type: text("type").notNull(), // deposit | withdraw | transfer_in | transfer_out | commission | refund
   amount: numeric("amount", { precision: 18, scale: 6 }).notNull(),
   currency: text("currency"), // TON | USDT
@@ -13,7 +14,11 @@ export const transactionsTable = pgTable("transactions", {
   note: text("note"),
   refUserId: integer("ref_user_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => [
+  index("transactions_user_id_idx").on(table.userId),
+  index("transactions_type_idx").on(table.type),
+  index("transactions_user_created_idx").on(table.userId, table.createdAt),
+]);
 
 export const insertTransactionSchema = createInsertSchema(transactionsTable).omit({ id: true, createdAt: true });
 export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
